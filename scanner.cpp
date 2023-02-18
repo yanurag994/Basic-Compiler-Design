@@ -72,9 +72,9 @@ public:
   }
   void set_token_type()
   {
-    symbol_table[tokenMark.stringValue] = symbol_table_key_gen++;
-    //type = symbol_table[tokenMark.stringValue];
-    type=IDENTIFIER;
+    // symbol_table[tokenMark.stringValue] = symbol_table_key_gen++;
+    // type = symbol_table[tokenMark.stringValue];
+    type = IDENTIFIER;
     return;
   };
 };
@@ -84,7 +84,7 @@ class inFile
 private:
   std::ifstream filePtr; // the input file
   string fileName;
-  int lineCntHist=0;
+  int lineCntHist = 0;
   std::basic_istream<char>::pos_type seekpos;
   int lineCnt = 1; // the line count; initialized to zero
 public:
@@ -107,13 +107,16 @@ public:
   void ungetChar() { filePtr.unget(); } // push character back to the input file string
   int getLineCnt() { return lineCnt; }
   void incLineCnt() { lineCnt++; }
-  void recordState() {
-  lineCntHist=lineCnt;
-  seekpos=filePtr.tellg();
+  void recordState()
+  {
+    lineCntHist = lineCnt;
+    seekpos = filePtr.tellg();
   }
-  void rollbackState() {
-  lineCnt=lineCntHist;
-  filePtr.seekg(seekpos);};
+  void rollbackState()
+  {
+    lineCnt = lineCntHist;
+    filePtr.seekg(seekpos);
+  };
 };
 
 class reporting : public inFile
@@ -134,6 +137,12 @@ public:
   bool getErrorStatus() { return errorStatus; }
 };
 
+bool parser_statement(reporting &file_holder);
+bool parser_declaration(reporting &file_holder);
+bool parser_procedure_declaration(reporting &file_holder);
+bool parser_procedure_body(reporting &file_holder);
+bool parser_program_header(reporting &file_holder);
+
 void unscan(reporting &file_holder)
 {
   file_holder.rollbackState();
@@ -142,6 +151,7 @@ void unscan(reporting &file_holder)
 
 token scan(reporting &file_holder)
 {
+  sleep(1);
   file_holder.recordState();
   token tk;
   char nxtChar = file_holder.getChar();
@@ -188,11 +198,73 @@ token scan(reporting &file_holder)
     }
     break;
 
-  case ';': case ',': case '(': case ')': case '+': case '-': case '*': case '/':                        // ... and other single char tokens
+  case ';':
+  case ',':
+  case '(':
+  case ')':
+  case '+':
+  case '-':
+  case '*':
+  case '/':                        // ... and other single char tokens
     tk.type = (token_type)nxtChar; // tk.type = nxtChar; // ASCII value is used as token type
-    break;                   // ASCII value used as token type
+    break;                         // ASCII value used as token type
 
-  case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G': case 'H': case 'I': case 'J': case 'K': case 'L': case 'M': case 'N': case 'O': case 'P': case 'Q': case 'R': case 'S': case 'T': case 'U': case 'V': case 'W': case 'X': case 'Y': case 'Z': case 'a': case 'b': case 'c': case 'd': case 'e': case 'f': case 'g': case 'h': case 'i': case 'j': case 'k': case 'l': case 'm': case 'n': case 'o': case 'p': case 'q': case 'r': case 's': case 't': case 'u': case 'v': case 'w': case 'x': case 'y': case 'z': case '<': case '=': case '>': case ':':
+  case 'A':
+  case 'B':
+  case 'C':
+  case 'D':
+  case 'E':
+  case 'F':
+  case 'G':
+  case 'H':
+  case 'I':
+  case 'J':
+  case 'K':
+  case 'L':
+  case 'M':
+  case 'N':
+  case 'O':
+  case 'P':
+  case 'Q':
+  case 'R':
+  case 'S':
+  case 'T':
+  case 'U':
+  case 'V':
+  case 'W':
+  case 'X':
+  case 'Y':
+  case 'Z':
+  case 'a':
+  case 'b':
+  case 'c':
+  case 'd':
+  case 'e':
+  case 'f':
+  case 'g':
+  case 'h':
+  case 'i':
+  case 'j':
+  case 'k':
+  case 'l':
+  case 'm':
+  case 'n':
+  case 'o':
+  case 'p':
+  case 'q':
+  case 'r':
+  case 's':
+  case 't':
+  case 'u':
+  case 'v':
+  case 'w':
+  case 'x':
+  case 'y':
+  case 'z':
+  case '<':
+  case '=':
+  case '>':
+  case ':':
   {
     std::set<char> allowed_chars = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '='};
     tk.tokenMark.stringValue[0] = tolower(nxtChar);
@@ -212,7 +284,16 @@ token scan(reporting &file_holder)
     break;
   }
 
-  case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': //.... and other digits
+  case '0':
+  case '1':
+  case '2':
+  case '3':
+  case '4':
+  case '5':
+  case '6':
+  case '7':
+  case '8':
+  case '9': //.... and other digits
   {
     tk.type = NUMBER;
     double temp;
@@ -248,18 +329,20 @@ token scan(reporting &file_holder)
     tk.type = EOF;
     break;
   default: // anything else is not recognized
-    std::stringstream ss;    
-    for(int i=0;nxtChar!=' '&&nxtChar!='\t'&&nxtChar!='\n'&&nxtChar!='\r';i++){
+    std::stringstream ss;
+    for (int i = 0; nxtChar != ' ' && nxtChar != '\t' && nxtChar != '\n' && nxtChar != '\r'; i++)
+    {
       tk.tokenMark.stringValue[i] = nxtChar;
       ss << nxtChar;
-      nxtChar=file_holder.getChar();}
+      nxtChar = file_holder.getChar();
+    }
     file_holder.reportError("Illegal character: " + ss.str() + ", found. Ignored");
     tk.type = UNKNOWN;
     file_holder.ungetChar();
     break;
   }
-  std::cout<<"Token type"<<tk.type<<std::endl;
-return tk;
+  std::cout << "Token type" << tk.type << " " << tk.tokenMark.stringValue << std::endl;
+  return tk;
 }
 
 void initialize_token_table()
@@ -289,139 +372,268 @@ void initialize_token_table()
   return;
 }
 
-bool parser_type_mark(reporting &file_holder){
-  int type=scan(file_holder).type;
-  if(type==INTEGER_RW||type==FLOAT_RW||type==STRING_RW||type==BOOLEAN_RW)
+bool parser_type_mark(reporting &file_holder)
+{
+  int type = scan(file_holder).type;
+  if (type == INTEGER_RW || type == FLOAT_RW || type == STRING_RW || type == BOOLEAN_RW)
     return true;
   return false;
 }
 
-bool parser_variable_declaration(reporting &file_holder){
-  if(scan(file_holder).type==VARIABLE_RW)
+bool parser_variable_declaration(reporting &file_holder)
+{
+  if (scan(file_holder).type == VARIABLE_RW)
   {
-    if(scan(file_holder).type==IDENTIFIER)
-      if(scan(file_holder).type==TYPE_SEPERATOR)
-        if(parser_type_mark(file_holder))
-          if(scan(file_holder).type=='['){
-              if(scan(file_holder).type==INTEGER_VAL)
-                if(scan(file_holder).type==']')
-                  return true;
-              return false;
+    if (scan(file_holder).type == IDENTIFIER)
+      if (scan(file_holder).type == TYPE_SEPERATOR)
+        if (parser_type_mark(file_holder))
+          if (scan(file_holder).type == '[')
+          {
+            if (scan(file_holder).type == INTEGER_VAL)
+              if (scan(file_holder).type == ']')
+                return true;
+            return false;
           }
-          else{
+          else
+          {
             unscan(file_holder);
             return true;
           }
   }
-  else{
+  else
+  {
     unscan(file_holder);
   }
   return false;
 }
 
-bool parser_parameter(reporting &file_holder){
-  if(parser_variable_declaration(file_holder))
+bool parser_parameter(reporting &file_holder)
+{
+  if (parser_variable_declaration(file_holder))
     return true;
   return false;
 }
 
-bool parser_parameter_list(reporting &file_holder){
-  if(parser_parameter(file_holder))
+bool parser_parameter_list(reporting &file_holder)
+{ // Need corrections
+  if (parser_parameter(file_holder))
     return true;
-  if(scan(file_holder).type==',')
+  if (scan(file_holder).type == ',')
   {
-    if(parser_parameter_list(file_holder))
+    if (parser_parameter_list(file_holder))
       return true;
     return false;
   }
-  else{
+  else
+  {
     unscan(file_holder);
     return false;
   }
 }
 
-bool parser_procedure_header(reporting &file_holder){
-  if(scan(file_holder).type==PROCEDURE_RW)         
-    if(scan(file_holder).type==IDENTIFIER)
-      if(scan(file_holder).type==TYPE_SEPERATOR)
-      {
-        if(parser_parameter_list(file_holder))
-          return true;
-      }
-  unscan(file_holder);
+bool parser_procedure_header(reporting &file_holder)
+{
+  if (scan(file_holder).type == PROCEDURE_RW)
+  {
+    if (scan(file_holder).type == IDENTIFIER)
+      if (scan(file_holder).type == TYPE_SEPERATOR)
+        if (parser_type_mark(file_holder))
+          if (scan(file_holder).type == (int)'(')
+            if (parser_parameter_list(file_holder))
+              if (scan(file_holder).type == (int)')')
+                return true;
+  }
+  else
+  {
+    unscan(file_holder);
+  }
   return false;
 }
 
-
-
-bool parser_statement(reporting &file_holder){
-  while(scan(file_holder).type!=';');
-  unscan(file_holder);
-  return true;
+bool parser_expression(reporting &file_holder)
+{
+  return false;
 }
 
-bool parser_declaration(reporting &file_holder);
-bool parser_procedure_declaration(reporting &file_holder);
-bool parser_procedure_body(reporting &file_holder);
-bool parser_program_header(reporting &file_holder);
+bool parser_argument_list(reporting &file_holder)
+{
+  if(parser_expression(file_holder))
+    if(scan(file_holder).type!=',')
+    {
+      unscan(file_holder);
+      return true;
+    }
+    else{
+      if(parser_argument_list(file_holder))
+        return true;
+    }
+  return false;
+}
 
+bool parser_destination(reporting &file_holder)
+{
+  if(scan(file_holder).type!=IDENTIFIER){
+    unscan(file_holder);
+    return false;
+  }
+  while(parser_expression(file_holder));
+    return true;
+}
 
-bool parser_procedure_body(reporting &file_holder){
-  while(parser_declaration(file_holder) && scan(file_holder).type==';');
-  if(scan(file_holder).type==BEGIN_RW)
-    while(parser_statement(file_holder) && scan(file_holder).type==';');
-      if(scan(file_holder).type==END_RW && scan(file_holder).type==PROCEDURE_RW)
+bool parser_assignment_statement(reporting &file_holder)
+{
+  if(!parser_destination(file_holder))
+    if(scan(file_holder).type==EQUAL_ASSIGN)
+      if(parser_expression(file_holder))
         return true;
   return false;
 }
 
+bool parser_if_statement(reporting &file_holder)
+{
+  if (scan(file_holder).type != IF_RW)
+  {
+    unscan(file_holder);
+    return false;
+  }
+  if (parser_expression(file_holder))
+    if (scan(file_holder).type == THEN_RW)
+    {
+      while (parser_statement(file_holder) && scan(file_holder).type == ';')
+        ;
+      if (scan(file_holder).type != ELSE_RW)
+      {
+        unscan(file_holder);
+        if (scan(file_holder).type == END_RW)
+          if (scan(file_holder).type == IF_RW)
+            return true;
+        return false;
+      }
+      while (parser_statement(file_holder) && scan(file_holder).type == ';')
+        ;
+      if (scan(file_holder).type == END_RW)
+        if (scan(file_holder).type == IF_RW)
+          return true;
+      return false;
+    }
+  return false;
+}
 
-bool parser_procedure_declaration(reporting &file_holder){
-  if(parser_procedure_header(file_holder))
-    if(parser_procedure_body(file_holder))
+bool parser_loop_statement(reporting &file_holder)
+{
+  if (scan(file_holder).type != FOR_RW)
+  {
+    unscan(file_holder);
+    return false;
+  }
+  if (parser_assignment_statement(file_holder) && scan(file_holder).type == ';')
+  {
+    while (parser_statement(file_holder) && scan(file_holder).type == ';')
+      ;
+    if (scan(file_holder).type == END_RW && scan(file_holder).type == FOR_RW)
       return true;
+  }
+  return false;
+}
+
+bool parser_return_statement(reporting &file_holder)
+{
+  if (scan(file_holder).type != RETURN_RW)
+  {
+    unscan(file_holder);
+    return false;
+  }
+  if (parser_expression(file_holder))
+    return true;
+  return false;
+}
+
+bool parser_procedure_call(reporting &file_holder)
+{
+  if (scan(file_holder).type != IDENTIFIER)
+  {
+    unscan(file_holder);
+    return false;
+  }
+  if ((parser_argument_list(file_holder)))
+    return true;
+  return false;
+}
+
+bool parser_statement(reporting &file_holder)
+{
+  if(parser_assignment_statement(file_holder)||parser_if_statement(file_holder)||parser_loop_statement(file_holder)||parser_procedure_call(file_holder)||parser_return_statement(file_holder))
+    return true;
+  return false;
+}
+
+
+bool parser_procedure_body(reporting &file_holder)
+{
+  while (parser_declaration(file_holder))
+    std::cout << "Cool";
+  if (scan(file_holder).type == BEGIN_RW)
+    while (parser_statement(file_holder) && scan(file_holder).type == ';')
+      ;
+  if (scan(file_holder).type == END_RW && scan(file_holder).type == PROCEDURE_RW && scan(file_holder).type == ';')
+    return true;
+  return false;
+}
+
+bool parser_procedure_declaration(reporting &file_holder)
+{
+  if (parser_procedure_header(file_holder))
+  {
+    if (parser_procedure_body(file_holder))
+    {
+      std::cout << "Passed procedure body";
+      return true;
+    }
+  }
   return false;
 }
 
 bool parser_program_header(reporting &file_holder)
 {
-  if(scan(file_holder).type==PROGRAM_RW)
-    if(scan(file_holder).type==IDENTIFIER)
-      if(scan(file_holder).type==IS_RW){std::cout<<"Program header success";
-        return true;}
+  if (scan(file_holder).type == PROGRAM_RW)
+    if (scan(file_holder).type == IDENTIFIER)
+      if (scan(file_holder).type == IS_RW)
+        return true;
   return false;
 }
 
-bool parser_declaration(reporting &file_holder){
-  if(scan(file_holder).type!=GLOBAL_RW)
+bool parser_declaration(reporting &file_holder)
+{
+  if (scan(file_holder).type != GLOBAL_RW)
     unscan(file_holder);
-  if(parser_procedure_declaration(file_holder))
+  if (parser_procedure_declaration(file_holder))
     return true;
-  if(parser_variable_declaration(file_holder) && scan(file_holder).type==';')
+  if (parser_variable_declaration(file_holder) && scan(file_holder).type == ';')
     return true;
   return false;
 }
 
 bool parser_program_body(reporting &file_holder)
 {
-  while(parser_declaration(file_holder))
-    std::cout<<"passed parser_declaration";
-  if(scan(file_holder).type!=BEGIN_RW)
+  while (parser_declaration(file_holder))
+    ;
+  if (scan(file_holder).type != BEGIN_RW)
     return false;
-  while(parser_statement(file_holder) && scan(file_holder).type==';');
-  if(scan(file_holder).type==END_RW)
-    if(scan(file_holder).type==PROGRAM_RW)
+  while (parser_statement(file_holder) && scan(file_holder).type == ';')
+    ;
+  if (scan(file_holder).type == END_RW)
+    if (scan(file_holder).type == PROGRAM_RW)
       return true;
   return false;
 }
 
 bool parser_program(reporting &file_holder)
 {
-    if(parser_program_header(file_holder))
+  if (parser_program_header(file_holder))
     parser_program_body(file_holder);
-    if(scan(file_holder).type==EOF)
-      return true;
-    return false;
+  if (scan(file_holder).type == EOF)
+    return true;
+  return false;
 }
 
 int main()
@@ -429,17 +641,16 @@ int main()
   reporting scan_file;
   scan_file.attachFile("correct/math.src");
   initialize_token_table();
-  std::cout<<parser_program(scan_file);
+  std::cout << parser_program(scan_file);
   token tk;
-/*   do
-  {
-    tk = scan(scan_file);
-    std::cout << tk.type << " ; " << tk.tokenMark.intValue << " " << tk.tokenMark.doubleValue << " " << tk.tokenMark.stringValue << std::endl;
-  } while (tk.type != EOF);
-  unscan(scan_file);
-    tk = scan(scan_file);
-    std::cout << tk.type << " ; " << tk.tokenMark.intValue << " " << tk.tokenMark.doubleValue << " " << tk.tokenMark.stringValue << std::endl;
-   */
+  /*   do
+    {
+      tk = scan(scan_file);
+      std::cout << tk.type << " ; " << tk.tokenMark.intValue << " " << tk.tokenMark.doubleValue << " " << tk.tokenMark.stringValue << std::endl;
+    } while (tk.type != EOF);
+    unscan(scan_file);
+      tk = scan(scan_file);
+      std::cout << tk.type << " ; " << tk.tokenMark.intValue << " " << tk.tokenMark.doubleValue << " " << tk.tokenMark.stringValue << std::endl;
+     */
   return 0;
 }
-
