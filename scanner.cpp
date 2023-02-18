@@ -39,6 +39,7 @@ enum token_type
   UNKNOWN,
   PROGRAM_RW,
   IS_RW,
+  VARIABLE_RW
 };
 int symbol_table_key_gen = 10000;
 
@@ -58,8 +59,8 @@ public:
   union
   {
     char stringValue[256] = {}; // holds lexeme value if string/identifier
-    int intValue;          // holds lexeme value if integer
-    double doubleValue;    // holds lexeme value if double
+    int intValue;               // holds lexeme value if integer
+    double doubleValue;         // holds lexeme value if double
   } tokenMark;
   int get_token_type()
   {
@@ -72,7 +73,8 @@ public:
   void set_token_type()
   {
     symbol_table[tokenMark.stringValue] = symbol_table_key_gen++;
-    type = symbol_table[tokenMark.stringValue];
+    //type = symbol_table[tokenMark.stringValue];
+    type=IDENTIFIER;
     return;
   };
 };
@@ -82,7 +84,8 @@ class inFile
 private:
   std::ifstream filePtr; // the input file
   string fileName;
-
+  int lineCntHist=0;
+  std::basic_istream<char>::pos_type seekpos;
   int lineCnt = 1; // the line count; initialized to zero
 public:
   bool attachFile(string filename)
@@ -104,23 +107,42 @@ public:
   void ungetChar() { filePtr.unget(); } // push character back to the input file string
   int getLineCnt() { return lineCnt; }
   void incLineCnt() { lineCnt++; }
+  void recordState() {
+  lineCntHist=lineCnt;
+  seekpos=filePtr.tellg();
+  }
+  void rollbackState() {
+  lineCnt=lineCntHist;
+  filePtr.seekg(seekpos);};
 };
 
-class reporting:public inFile{
-  private:
+class reporting : public inFile
+{
+private:
   bool errorStatus = false;
-  public:
-  void reportError(string error){
-    errorStatus=true;
-    std::cout<<"ERROR at line "<<getLineCnt()<<" "<< error<<std::endl;
+
+public:
+  void reportError(string error)
+  {
+    errorStatus = true;
+    std::cout << "ERROR at line " << getLineCnt() << " " << error << std::endl;
   }
-  void reportWarning(string warning){
-    std::cout<<warning;
+  void reportWarning(string warning)
+  {
+    std::cout << warning;
   }
-  bool getErrorStatus() {return errorStatus;}
+  bool getErrorStatus() { return errorStatus; }
 };
+
+void unscan(reporting &file_holder)
+{
+  file_holder.rollbackState();
+  return;
+}
+
 token scan(reporting &file_holder)
 {
+  file_holder.recordState();
   token tk;
   char nxtChar = file_holder.getChar();
   while (nxtChar == '\n' || nxtChar == '\t' || nxtChar == '\r' || nxtChar == ' ')
@@ -130,10 +152,7 @@ token scan(reporting &file_holder)
     nxtChar = file_holder.getChar();
   }
   // build a loop here to process comments
-  
-  switch (nxtChar)
-  {
-  case '/':
+  while (nxtChar == '/')
   {
     nxtChar = file_holder.getChar();
     if (nxtChar == '/')
@@ -146,128 +165,54 @@ token scan(reporting &file_holder)
       {
         while (nxtChar != '*')
           nxtChar = file_holder.getChar();
+        nxtChar = file_holder.getChar();
         if (nxtChar == '/')
-        {
           nxtChar = file_holder.getChar();
-          break;
-        }
+        break;
       }
-    else
-    {
-      tk.type = (token_type)nxtChar; // tk.type = nxtChar; // ASCII value is used as token type
-      file_holder.ungetChar();
-      return tk;
-    }
-    file_holder.ungetChar();
+    nxtChar = file_holder.getChar();
   }
-  
+
+  switch (nxtChar)
+  {
   case '"':
-  tk.type=STRING_VAL;
-  nxtChar=file_holder.getChar();
-  tk.tokenMark.stringValue[0]=nxtChar;
-  unsigned i;
-  nxtChar=file_holder.getChar();
-  for(i=1;nxtChar!='"';i++)
-  {
-    tk.tokenMark.stringValue[i]=nxtChar;
-    nxtChar=file_holder.getChar();
-  }
-  return tk;
+    tk.type = STRING_VAL;
+    nxtChar = file_holder.getChar();
+    tk.tokenMark.stringValue[0] = nxtChar;
+    unsigned i;
+    nxtChar = file_holder.getChar();
+    for (i = 1; nxtChar != '"'; i++)
+    {
+      tk.tokenMark.stringValue[i] = nxtChar;
+      nxtChar = file_holder.getChar();
+    }
+    break;
 
-  case ';':
-  case ',':
-  case '(':
-  case ')':
-  case '+':
-  case '-':
-  case '*':                        // ... and other single char tokens
+  case ';': case ',': case '(': case ')': case '+': case '-': case '*': case '/':                        // ... and other single char tokens
     tk.type = (token_type)nxtChar; // tk.type = nxtChar; // ASCII value is used as token type
-    return tk;                     // ASCII value used as token type
+    break;                   // ASCII value used as token type
 
-  case 'A':
-  case 'B':
-  case 'C':
-  case 'D':
-  case 'E':
-  case 'F':
-  case 'G':
-  case 'H':
-  case 'I':
-  case 'J':
-  case 'K':
-  case 'L':
-  case 'M':
-  case 'N':
-  case 'O':
-  case 'P':
-  case 'Q':
-  case 'R':
-  case 'S':
-  case 'T':
-  case 'U':
-  case 'V':
-  case 'W':
-  case 'X':
-  case 'Y':
-  case 'Z':
-  case 'a':
-  case 'b':
-  case 'c':
-  case 'd':
-  case 'e':
-  case 'f':
-  case 'g':
-  case 'h':
-  case 'i':
-  case 'j':
-  case 'k':
-  case 'l':
-  case 'm':
-  case 'n':
-  case 'o':
-  case 'p':
-  case 'q':
-  case 'r':
-  case 's':
-  case 't':
-  case 'u':
-  case 'v':
-  case 'w':
-  case 'x':
-  case 'y':
-  case 'z':
-  case '<':
-  case '=':
-  case '>':
-  case ':':
+  case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G': case 'H': case 'I': case 'J': case 'K': case 'L': case 'M': case 'N': case 'O': case 'P': case 'Q': case 'R': case 'S': case 'T': case 'U': case 'V': case 'W': case 'X': case 'Y': case 'Z': case 'a': case 'b': case 'c': case 'd': case 'e': case 'f': case 'g': case 'h': case 'i': case 'j': case 'k': case 'l': case 'm': case 'n': case 'o': case 'p': case 'q': case 'r': case 's': case 't': case 'u': case 'v': case 'w': case 'x': case 'y': case 'z': case '<': case '=': case '>': case ':':
   {
-    std::set<char> allowed_chars={'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','0','1','2','3','4','5','6','7','8','9','='};
+    std::set<char> allowed_chars = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '='};
     tk.tokenMark.stringValue[0] = tolower(nxtChar);
     unsigned i;
-    nxtChar=file_holder.getChar();
-    for (i = 1; true; i++){
-      if(allowed_chars.find(nxtChar)==allowed_chars.end())
-        break; 
+    nxtChar = file_holder.getChar();
+    for (i = 1; true; i++)
+    {
+      if (allowed_chars.find(nxtChar) == allowed_chars.end())
+        break;
       tk.tokenMark.stringValue[i] = tolower(nxtChar); // gather lowercase
-      nxtChar=file_holder.getChar();
-      }
+      nxtChar = file_holder.getChar();
+    }
     file_holder.ungetChar();
     tk.tokenMark.stringValue[i] = '\0';
     if (tk.get_token_type() == false)
       tk.set_token_type(); // get symbol for ident
-    return tk;
+    break;
   }
 
-  case '0':
-  case '1':
-  case '2':
-  case '3':
-  case '4':
-  case '5':
-  case '6':
-  case '7':
-  case '8':
-  case '9': //.... and other digits
+  case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': //.... and other digits
   {
     tk.type = NUMBER;
     double temp;
@@ -282,7 +227,7 @@ token scan(reporting &file_holder)
         temp += fractionalPart * (nxtChar - '0');
         fractionalPart /= 10;
       }
-      tk.tokenMark.doubleValue=temp;
+      tk.tokenMark.doubleValue = temp;
       tk.type = FLOAT_VAL;
     }
     else
@@ -291,31 +236,36 @@ token scan(reporting &file_holder)
       tk.type = INTEGER_VAL;
     }
     file_holder.ungetChar();
-    return tk;
+    break;
   }
 
   case '.':
     tk.type = EOF;
-    return tk;
+    break;
 
   case EOF:
-    //generate error and return
+    // generate error and return
     tk.type = EOF;
-    return tk;
+    break;
   default: // anything else is not recognized
-    std::stringstream ss;
-    ss<<nxtChar;
+    std::stringstream ss;    
+    for(int i=0;nxtChar!=' '&&nxtChar!='\t'&&nxtChar!='\n'&&nxtChar!='\r';i++){
+      tk.tokenMark.stringValue[i] = nxtChar;
+      ss << nxtChar;
+      nxtChar=file_holder.getChar();}
     file_holder.reportError("Illegal character: " + ss.str() + ", found. Ignored");
-    tk.tokenMark.intValue = nxtChar;
     tk.type = UNKNOWN;
-    return tk;
+    file_holder.ungetChar();
+    break;
   }
+  std::cout<<"Token type"<<tk.type<<std::endl;
+return tk;
 }
 
 void initialize_token_table()
 {
-  symbol_table["program"]=PROGRAM_RW;
-  symbol_table["is"]=IS_RW;
+  symbol_table["program"] = PROGRAM_RW;
+  symbol_table["is"] = IS_RW;
   symbol_table["if"] = IF_RW;
   symbol_table["then"] = THEN_RW;
   symbol_table["for"] = FOR_RW;
@@ -325,7 +275,7 @@ void initialize_token_table()
   symbol_table["procedure"] = PROCEDURE_RW;
   symbol_table["while"] = WHILE_RW;
   symbol_table["global"] = GLOBAL_RW;
-  symbol_table["variable"] = IDENTIFIER;
+  symbol_table["variable"] = VARIABLE_RW;
   symbol_table["float"] = FLOAT_RW;
   symbol_table["integer"] = INTEGER_RW;
   symbol_table["bool"] = BOOLEAN_RW;
@@ -339,17 +289,157 @@ void initialize_token_table()
   return;
 }
 
+bool parser_type_mark(reporting &file_holder){
+  int type=scan(file_holder).type;
+  if(type==INTEGER_RW||type==FLOAT_RW||type==STRING_RW||type==BOOLEAN_RW)
+    return true;
+  return false;
+}
+
+bool parser_variable_declaration(reporting &file_holder){
+  if(scan(file_holder).type==VARIABLE_RW)
+  {
+    if(scan(file_holder).type==IDENTIFIER)
+      if(scan(file_holder).type==TYPE_SEPERATOR)
+        if(parser_type_mark(file_holder))
+          if(scan(file_holder).type=='['){
+              if(scan(file_holder).type==INTEGER_VAL)
+                if(scan(file_holder).type==']')
+                  return true;
+              return false;
+          }
+          else{
+            unscan(file_holder);
+            return true;
+          }
+  }
+  else{
+    unscan(file_holder);
+  }
+  return false;
+}
+
+bool parser_parameter(reporting &file_holder){
+  if(parser_variable_declaration(file_holder))
+    return true;
+  return false;
+}
+
+bool parser_parameter_list(reporting &file_holder){
+  if(parser_parameter(file_holder))
+    return true;
+  if(scan(file_holder).type==',')
+  {
+    if(parser_parameter_list(file_holder))
+      return true;
+    return false;
+  }
+  else{
+    unscan(file_holder);
+    return false;
+  }
+}
+
+bool parser_procedure_header(reporting &file_holder){
+  if(scan(file_holder).type==PROCEDURE_RW)         
+    if(scan(file_holder).type==IDENTIFIER)
+      if(scan(file_holder).type==TYPE_SEPERATOR)
+      {
+        if(parser_parameter_list(file_holder))
+          return true;
+      }
+  unscan(file_holder);
+  return false;
+}
+
+
+
+bool parser_statement(reporting &file_holder){
+  while(scan(file_holder).type!=';');
+  unscan(file_holder);
+  return true;
+}
+
+bool parser_declaration(reporting &file_holder);
+bool parser_procedure_declaration(reporting &file_holder);
+bool parser_procedure_body(reporting &file_holder);
+bool parser_program_header(reporting &file_holder);
+
+
+bool parser_procedure_body(reporting &file_holder){
+  while(parser_declaration(file_holder) && scan(file_holder).type==';');
+  if(scan(file_holder).type==BEGIN_RW)
+    while(parser_statement(file_holder) && scan(file_holder).type==';');
+      if(scan(file_holder).type==END_RW && scan(file_holder).type==PROCEDURE_RW)
+        return true;
+  return false;
+}
+
+
+bool parser_procedure_declaration(reporting &file_holder){
+  if(parser_procedure_header(file_holder))
+    if(parser_procedure_body(file_holder))
+      return true;
+  return false;
+}
+
+bool parser_program_header(reporting &file_holder)
+{
+  if(scan(file_holder).type==PROGRAM_RW)
+    if(scan(file_holder).type==IDENTIFIER)
+      if(scan(file_holder).type==IS_RW){std::cout<<"Program header success";
+        return true;}
+  return false;
+}
+
+bool parser_declaration(reporting &file_holder){
+  if(scan(file_holder).type!=GLOBAL_RW)
+    unscan(file_holder);
+  if(parser_procedure_declaration(file_holder))
+    return true;
+  if(parser_variable_declaration(file_holder) && scan(file_holder).type==';')
+    return true;
+  return false;
+}
+
+bool parser_program_body(reporting &file_holder)
+{
+  while(parser_declaration(file_holder))
+    std::cout<<"passed parser_declaration";
+  if(scan(file_holder).type!=BEGIN_RW)
+    return false;
+  while(parser_statement(file_holder) && scan(file_holder).type==';');
+  if(scan(file_holder).type==END_RW)
+    if(scan(file_holder).type==PROGRAM_RW)
+      return true;
+  return false;
+}
+
+bool parser_program(reporting &file_holder)
+{
+    if(parser_program_header(file_holder))
+    parser_program_body(file_holder);
+    if(scan(file_holder).type==EOF)
+      return true;
+    return false;
+}
+
 int main()
 {
   reporting scan_file;
   scan_file.attachFile("correct/math.src");
   initialize_token_table();
+  std::cout<<parser_program(scan_file);
   token tk;
-  do 
+/*   do
   {
     tk = scan(scan_file);
     std::cout << tk.type << " ; " << tk.tokenMark.intValue << " " << tk.tokenMark.doubleValue << " " << tk.tokenMark.stringValue << std::endl;
-    
-  }while(tk.type != EOF);
+  } while (tk.type != EOF);
+  unscan(scan_file);
+    tk = scan(scan_file);
+    std::cout << tk.type << " ; " << tk.tokenMark.intValue << " " << tk.tokenMark.doubleValue << " " << tk.tokenMark.stringValue << std::endl;
+   */
   return 0;
 }
+
