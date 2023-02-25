@@ -1,5 +1,48 @@
 #include "./Parser.hpp"
 
+bool Parser::program()
+{
+  if (program_header())
+    program_body();
+  if (lexer_handle.scan().type == EOF)
+    return true;
+  return false;
+}
+
+bool Parser::program_header()
+{
+  if (lexer_handle.scan().type == PROGRAM_RW)
+    if (lexer_handle.scan().type == IDENTIFIER)
+      if (lexer_handle.scan().type == IS_RW)
+        return true;
+  return false;
+}
+
+bool Parser::program_body()
+{
+  while (declaration())
+    ;
+  if (lexer_handle.scan().type != BEGIN_RW)
+    return false;
+  while (statement() && lexer_handle.scan().type == ';')
+    ;
+  if (lexer_handle.scan().type == END_RW)
+    if (lexer_handle.scan().type == PROGRAM_RW)
+      return true;
+  return false;
+}
+
+bool Parser::declaration()
+{
+  if (lexer_handle.scan().type != GLOBAL_RW)
+
+    if (procedure_declaration())
+      return true;
+  if (variable_declaration() && lexer_handle.scan().type == ';')
+    return true;
+  return false;
+}
+
 bool Parser::type_mark()
 {
   int type = lexer_handle.scan().type;
@@ -24,13 +67,12 @@ bool Parser::variable_declaration()
           }
           else
           {
-            unlexer_handle.scan();
+
             return true;
           }
   }
   else
   {
-    unlexer_handle.scan();
   }
   return false;
 }
@@ -54,7 +96,7 @@ bool Parser::parameter_list()
   }
   else
   {
-    unlexer_handle.scan();
+
     return false;
   }
 }
@@ -73,7 +115,6 @@ bool Parser::procedure_header()
   }
   else
   {
-    unlexer_handle.scan();
   }
   return false;
 }
@@ -88,7 +129,6 @@ bool Parser::argument_list()
   if (expression())
     if (lexer_handle.scan().type != ',')
     {
-      unlexer_handle.scan();
       return true;
     }
     else
@@ -103,7 +143,7 @@ bool Parser::destination()
 {
   if (lexer_handle.scan().type != IDENTIFIER)
   {
-    unlexer_handle.scan();
+
     return false;
   }
   while (expression())
@@ -124,7 +164,7 @@ bool Parser::if_statement()
 {
   if (lexer_handle.scan().type != IF_RW)
   {
-    unlexer_handle.scan();
+
     return false;
   }
   if (lexer_handle.scan().type == '(')
@@ -136,7 +176,7 @@ bool Parser::if_statement()
             ;
           if (lexer_handle.scan().type != ELSE_RW)
           {
-            unlexer_handle.scan();
+
             if (lexer_handle.scan().type == END_RW)
               if (lexer_handle.scan().type == IF_RW)
                 return true;
@@ -156,7 +196,7 @@ bool Parser::loop_statement()
 {
   if (lexer_handle.scan().type != FOR_RW)
   {
-    unlexer_handle.scan();
+
     return false;
   }
   if (assignment_statement() && lexer_handle.scan().type == ';')
@@ -173,7 +213,7 @@ bool Parser::return_statement()
 {
   if (lexer_handle.scan().type != RETURN_RW)
   {
-    unlexer_handle.scan();
+
     return false;
   }
   if (expression())
@@ -185,7 +225,7 @@ bool Parser::procedure_call()
 {
   if (lexer_handle.scan().type != IDENTIFIER)
   {
-    unlexer_handle.scan();
+
     return false;
   }
   if ((argument_list()))
@@ -225,45 +265,8 @@ bool Parser::procedure_declaration()
   return false;
 }
 
-bool Parser::program_header()
-{
-  if (lexer_handle.scan().type == PROGRAM_RW)
-    if (lexer_handle.scan().type == IDENTIFIER)
-      if (lexer_handle.scan().type == IS_RW)
-        return true;
-  return false;
-}
 
-bool Parser::declaration()
-{
-  if (lexer_handle.scan().type != GLOBAL_RW)
-    unlexer_handle.scan();
-  if (procedure_declaration())
-    return true;
-  if (variable_declaration() && lexer_handle.scan().type == ';')
-    return true;
-  return false;
-}
 
-bool Parser::program_body()
-{
-  while (declaration())
-    ;
-  if (lexer_handle.scan().type != BEGIN_RW)
-    return false;
-  while (statement() && lexer_handle.scan().type == ';')
-    ;
-  if (lexer_handle.scan().type == END_RW)
-    if (lexer_handle.scan().type == PROGRAM_RW)
-      return true;
-  return false;
-}
 
-bool Parser::program()
-{
-  if (program_header())
-    program_body();
-  if (lexer_handle.scan().type == EOF)
-    return true;
-  return false;
-}
+
+

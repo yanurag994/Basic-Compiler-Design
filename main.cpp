@@ -2,6 +2,7 @@
 
 int main(){
   Lexer handle("correct/math.src");
+  std::cout<<"Testing Lexer"<<std::endl;
   token tk;
   do{
     tk=handle.scan();
