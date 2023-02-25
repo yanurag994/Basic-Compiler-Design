@@ -2,3 +2,10 @@
 correct
 incorrect
 scanner
+CMakeFiles
+CMakeCache.txt
+Makefile
+*.a
+cmake_install.cmake
+
+Compiler
