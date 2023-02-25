@@ -1,5 +1,4 @@
-#ifndef LEXER_H
-#define LEXER_H
+#pragma once
 
 #include <iostream>
 #include <fstream>
@@ -41,8 +40,6 @@ enum token_type
     VARIABLE_RW,
     eof
 };
-
-int symbol_table_key_gen = 10000;
 
 struct Scope
 {
@@ -117,5 +114,3 @@ public:
     bool isAlnum(char);
     token scan();
 };
-
-#endif // LEXER_H

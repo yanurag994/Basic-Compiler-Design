@@ -8,11 +8,11 @@
 #include <vector>
 #include <sstream>
 
-using namespace std;
+int symbol_table_key_gen = 10000;
 
-std::map<string, int> Symbols::initialize_token_table()
+std::map<std::string, int> Symbols::initialize_token_table()
 {
-  std::map<string, int> symbol_table;
+  std::map<std::string, int> symbol_table;
   symbol_table["program"] = PROGRAM_RW;
   symbol_table["is"] = IS_RW;
   symbol_table["if"] = IF_RW;
