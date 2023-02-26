@@ -28,6 +28,7 @@ private:
     bool return_statement();
     bool identifier();
     bool expression();
+    bool cond_expression();
     bool arithOp();
     bool relation();
     bool term();

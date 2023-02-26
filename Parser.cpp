@@ -98,8 +98,7 @@ bool Parser::variable_declaration()
     return true;
   }
   else
-    std::cout << "Irrecoverable error";
-  return false;
+    return false;
 }
 
 bool Parser::procedure_header()
@@ -113,6 +112,19 @@ bool Parser::procedure_header()
   }
   else
     return resync((token_type)')');
+}
+
+bool Parser::procedure_declaration()
+{
+  if (procedure_header())
+  {
+    if (procedure_body())
+    {
+      std::cout << "Passed procedure body";
+      return true;
+    }
+  }
+  return false;
 }
 
 bool Parser::type_mark()
@@ -145,9 +157,21 @@ bool Parser::parameter_list()
   }
 }
 
+bool Parser::procedure_body()
+{
+  while (declaration());
+  if (scan_assume(BEGIN_RW))
+    while (statement() && scan_assume((token_type)';'))
+      ;
+  if (scan_assume(END_RW) && scan_assume(PROCEDURE_RW) && scan_assume((token_type)';'))
+    return true;
+  return false;
+}
+
 bool Parser::expression()
 {
-  return false;
+  scan_assume(IDENTIFIER);
+  return true;
 }
 
 bool Parser::argument_list()
@@ -188,36 +212,20 @@ bool Parser::assignment_statement()
 
 bool Parser::if_statement()
 {
-  if (lexer_handle.scan().type != IF_RW)
-  {
-
-    return false;
+  if (scan_assume((token_type)'(') && cond_expression() && scan_assume((token_type)')') && scan_assume(THEN_RW)){
+    while (statement() && scan_assume((token_type)';'));
+    if (optional_scan_assume(ELSE_RW))
+      while (statement() && scan_assume((token_type)';'));
+    if (scan_assume(END_RW)&&scan_assume(IF_RW)&&scan_assume((token_type)';'))
+      return true;
   }
-  if (lexer_handle.scan().type == '(')
-    if (expression())
-      if (lexer_handle.scan().type == THEN_RW)
-        if (lexer_handle.scan().type == ')')
-        {
-          while (statement() && lexer_handle.scan().type == ';')
-            ;
-          if (lexer_handle.scan().type != ELSE_RW)
-          {
-
-            if (lexer_handle.scan().type == END_RW)
-              if (lexer_handle.scan().type == IF_RW)
-                return true;
-            return false;
-          }
-          while (statement() && lexer_handle.scan().type == ';')
-            ;
-          if (lexer_handle.scan().type == END_RW)
-            if (lexer_handle.scan().type == IF_RW)
-              return true;
-          return false;
-        }
   return false;
 }
 
+bool Parser::cond_expression()
+{
+  return true;
+}
 bool Parser::loop_statement()
 {
   if (lexer_handle.scan().type != FOR_RW)
@@ -237,56 +245,28 @@ bool Parser::loop_statement()
 
 bool Parser::return_statement()
 {
-  if (lexer_handle.scan().type != RETURN_RW)
-  {
-
-    return false;
-  }
-  if (expression())
+  if (expression() && scan_assume((token_type)';'))
     return true;
   return false;
 }
 
 bool Parser::procedure_call()
 {
-  if (lexer_handle.scan().type != IDENTIFIER)
-  {
-
-    return false;
-  }
-  if ((argument_list()))
+  if (scan_assume(IDENTIFIER) && argument_list())
     return true;
   return false;
 }
 
 bool Parser::statement()
 {
-  if (assignment_statement() || if_statement() || loop_statement() || procedure_call() || return_statement())
+  if(optional_scan_assume(IF_RW)&&if_statement())
+    return true;
+  if(optional_scan_assume(FOR_RW)&&loop_statement())
+    return true;
+  if(optional_scan_assume(RETURN_RW)&& return_statement())
+    return true;
+  if(optional_scan_assume(IDENTIFIER)&& assignment_statement())
     return true;
   return false;
 }
 
-bool Parser::procedure_body()
-{
-  while (declaration())
-    std::cout << "Cool";
-  if (lexer_handle.scan().type == BEGIN_RW)
-    while (statement() && lexer_handle.scan().type == ';')
-      ;
-  if (lexer_handle.scan().type == END_RW && lexer_handle.scan().type == PROCEDURE_RW && lexer_handle.scan().type == ';')
-    return true;
-  return false;
-}
-
-bool Parser::procedure_declaration()
-{
-  if (procedure_header())
-  {
-    if (procedure_body())
-    {
-      std::cout << "Passed procedure body";
-      return true;
-    }
-  }
-  return false;
-}
