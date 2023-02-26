@@ -1,21 +1,63 @@
 #include "./Parser.hpp"
+#include <sstream>
+#include <string>
 
-bool Parser::program()
+using namespace std;
+
+bool Parser::scan_assume(token_type type){
+  if (cur_tk.type == type)
+  {
+    std::cout << "Parsed token " << cur_tk.type << std::endl;
+    cur_tk = lexer_handle.scan();
+    return true;
+  }
+  else
+  {
+    std::stringstream ss;
+    ss << "At token " << cur_tk.type << ", expecting token " << type << std::endl;
+    lexer_handle.reportError(ss.str());
+    return false;
+  }
+}
+
+bool Parser::optional_scan_assume(token_type type)
 {
+  if (cur_tk.type == type)
+  {
+    std::cout << "Parsed token " << cur_tk.type << std::endl;
+    cur_tk = lexer_handle.scan();
+    return true;
+  }
+  return false;
+}
+
+bool Parser::program(){
   if (program_header())
     program_body();
-  if (lexer_handle.scan().type == EOF)
+  if (scan_assume(T_EOF))
     return true;
+  return false;
+}
+
+bool Parser::resync(token_type type){
+  while (cur_tk.type != type && cur_tk.type != T_EOF)
+    cur_tk = lexer_handle.scan();
+  if (cur_tk.type == type)
+  {
+    cur_tk = lexer_handle.scan();
+    std::cout << "Skipping till token " << cur_tk.type << std::endl;
+    return true;
+  }
+  std::cout << "Unable to continue parsing. Reached EOF while searching for resync token" << std::endl;
   return false;
 }
 
 bool Parser::program_header()
 {
-  if (lexer_handle.scan().type == PROGRAM_RW)
-    if (lexer_handle.scan().type == IDENTIFIER)
-      if (lexer_handle.scan().type == IS_RW)
-        return true;
-  return false;
+  if (scan_assume(PROGRAM_RW) && scan_assume(IDENTIFIER) && scan_assume(IS_RW))
+    return true;
+  else
+    return resync(IS_RW);
 }
 
 bool Parser::program_body()
@@ -34,46 +76,50 @@ bool Parser::program_body()
 
 bool Parser::declaration()
 {
-  if (lexer_handle.scan().type != GLOBAL_RW)
-
-    if (procedure_declaration())
-      return true;
-  if (variable_declaration() && lexer_handle.scan().type == ';')
+  optional_scan_assume(GLOBAL_RW);
+  if (optional_scan_assume(PROCEDURE_RW) && procedure_declaration())
     return true;
-  return false;
-}
-
-bool Parser::type_mark()
-{
-  int type = lexer_handle.scan().type;
-  if (type == INTEGER_RW || type == FLOAT_RW || type == STRING_RW || type == BOOLEAN_RW)
+  if (optional_scan_assume(VARIABLE_RW) && variable_declaration() && scan_assume((token_type)';'))
     return true;
   return false;
 }
 
 bool Parser::variable_declaration()
 {
-  if (lexer_handle.scan().type == VARIABLE_RW)
+  if (scan_assume(IDENTIFIER) && scan_assume(TYPE_SEPERATOR) && type_mark())
   {
-    if (lexer_handle.scan().type == IDENTIFIER)
-      if (lexer_handle.scan().type == TYPE_SEPERATOR)
-        if (type_mark())
-          if (lexer_handle.scan().type == '[')
-          {
-            if (lexer_handle.scan().type == INTEGER_VAL)
-              if (lexer_handle.scan().type == ']')
-                return true;
-            return false;
-          }
-          else
-          {
-
-            return true;
-          }
+    if (optional_scan_assume((token_type)'['))
+    {
+      if (scan_assume(INTEGER_VAL) && scan_assume((token_type)']'))
+        return true;
+      else
+        return resync((token_type)']');
+    }
+    return true;
   }
   else
+    std::cout << "Irrecoverable error";
+  return false;
+}
+
+bool Parser::procedure_header()
+{
+  if (scan_assume(IDENTIFIER) && scan_assume(TYPE_SEPERATOR) && type_mark() && scan_assume((token_type)'('))
   {
+    parameter_list();
+    if (scan_assume((token_type)')'))
+      return true;
+    return resync((token_type)')');
   }
+  else
+    return resync((token_type)')');
+}
+
+bool Parser::type_mark()
+{
+  if (optional_scan_assume(INTEGER_RW) || optional_scan_assume(FLOAT_RW) || optional_scan_assume(STRING_RW) || optional_scan_assume(BOOLEAN_RW))
+    return true;
+  lexer_handle.reportError("Expected a type identifier");
   return false;
 }
 
@@ -86,37 +132,17 @@ bool Parser::parameter()
 
 bool Parser::parameter_list()
 { // Need corrections
-  if (parameter())
-    return true;
-  if (lexer_handle.scan().type == ',')
+  if (scan_assume(VARIABLE_RW) && parameter())
   {
-    if (parameter_list())
-      return true;
+    if (optional_scan_assume((token_type)','))
+      if (parameter_list())
+        return true;
     return false;
   }
   else
   {
-
     return false;
   }
-}
-
-bool Parser::procedure_header()
-{
-  if (lexer_handle.scan().type == PROCEDURE_RW)
-  {
-    if (lexer_handle.scan().type == IDENTIFIER)
-      if (lexer_handle.scan().type == TYPE_SEPERATOR)
-        if (type_mark())
-          if (lexer_handle.scan().type == (int)'(')
-            if (parameter_list())
-              if (lexer_handle.scan().type == (int)')')
-                return true;
-  }
-  else
-  {
-  }
-  return false;
 }
 
 bool Parser::expression()
@@ -264,9 +290,3 @@ bool Parser::procedure_declaration()
   }
   return false;
 }
-
-
-
-
-
-

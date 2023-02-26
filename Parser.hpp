@@ -2,12 +2,12 @@
 
 class Parser
 {
-public:
-    bool parse_file();
-
 private:
     Lexer lexer_handle;
-    bool program();
+    token cur_tk;
+    bool scan_assume(token_type);
+    bool optional_scan_assume(token_type);
+    bool resync(token_type);
     bool program_header();
     bool program_body();
     bool declaration();
@@ -36,4 +36,8 @@ private:
     bool argument_list();
     bool number();
     bool string();
+
+public:
+    bool program();
+    Parser(std::string filename) : lexer_handle(filename) {cur_tk=lexer_handle.scan();}
 };
