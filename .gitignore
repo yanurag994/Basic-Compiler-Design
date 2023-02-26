@@ -1,7 +1,9 @@
 *.o
 correct
 incorrect
-scanner
+
+
+build
 CMakeFiles
 CMakeCache.txt
 Makefile

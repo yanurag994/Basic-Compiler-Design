@@ -38,7 +38,7 @@ enum token_type
     PROGRAM_RW,
     IS_RW,
     VARIABLE_RW,
-    eof
+    T_EOF
 };
 
 struct Scope
@@ -93,9 +93,17 @@ private:
 public:
     Lexer(std::string filename)
     {
-        fileName = filename;
-        filePtr.open(filename);
-        symbols = new Symbols();
+        try {
+            fileName = filename;
+            filePtr.open(filename);
+            if (filePtr.fail()) {
+                throw std::runtime_error("Failed to open file");
+            } 
+            symbols = new Symbols();
+        }
+        catch (const std::exception& e) {
+            std::cerr << "Error: " << e.what() << std::endl;
+        }
     }
     ~Lexer()
     {

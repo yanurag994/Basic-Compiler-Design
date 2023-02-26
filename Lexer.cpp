@@ -50,10 +50,12 @@ void Symbols::exitScope()
   else
     std::runtime_error("Hit the exitScope call at outermost scope");
 }
+
 void Symbols::enterSoftScope()
 {
   current = new Scope(current->symbol_table, nullptr, current);
 }
+
 void Symbols::exitSoftScope()
 {
   if (current->previous)
@@ -326,12 +328,12 @@ token Lexer::scan()
   }
 
   case '.':
-    tk.type = eof;
+    tk.type = T_EOF;
     break;
 
   case EOF:
     reportError("Unexpected End Of File reached. Expected program to end with \'.\'");
-    tk.type = eof;
+    tk.type = T_EOF;
     break;
 
   default: // anything else is not recognized

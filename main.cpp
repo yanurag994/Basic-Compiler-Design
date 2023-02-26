@@ -1,4 +1,5 @@
 #include "./Lexer.hpp"
+#include "./Parser.hpp"
 
 int main(){
   Lexer handle("correct/math.src");
@@ -7,5 +8,5 @@ int main(){
   do{
     tk=handle.scan();
     std::cout << tk.type<<" ; "<<tk.tokenMark.intValue<<" ; "<<tk.tokenMark.stringValue<<std::endl;
-  }while(tk.type!=eof);
+  }while(tk.type!=T_EOF);
 }
