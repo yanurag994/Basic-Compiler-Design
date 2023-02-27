@@ -193,6 +193,7 @@ bool Parser::destination()
 {
   if (lexer_handle.scan().type != IDENTIFIER)
   {
+    
     return false;
   }
   while (expression())
