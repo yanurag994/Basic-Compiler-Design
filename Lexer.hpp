@@ -49,7 +49,7 @@ struct Scope
     std::map<std::string, int> symbol_table;
     Scope *next;
     Scope *previous;
-    Scope(std::map<std::string, int> symbol_table, Scope *previous, Scope *next) : symbol_table(symbol_table), previous(previous), next(next) {};
+    Scope(std::map<std::string, int> symbol_table, Scope *previous, Scope *next) : symbol_table(symbol_table), previous(previous), next(next){};
 };
 
 struct tokenMk
@@ -96,15 +96,18 @@ private:
 public:
     Lexer(std::string filename)
     {
-        try {
+        try
+        {
             fileName = filename;
             filePtr.open(filename);
-            if (filePtr.fail()) {
+            if (filePtr.fail())
+            {
                 throw std::runtime_error("Failed to open file");
-            } 
+            }
             symbols = new Symbols();
         }
-        catch (const std::exception& e) {
+        catch (const std::exception &e)
+        {
             std::cerr << "Error: " << e.what() << std::endl;
         }
     }

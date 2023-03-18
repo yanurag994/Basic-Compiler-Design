@@ -107,7 +107,7 @@ token_type Lexer::hashLook(std::string lexeme)
   return static_cast<token_type>(symbol->second);
 }
 
-bool Lexer::isAlpha(char c) { return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'); }
+bool Lexer::isAlpha(char c) { return (c == '_') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'); }
 
 bool Lexer::isDigit(char c) { return c >= '0' && c <= '9'; }
 
@@ -128,7 +128,7 @@ token Lexer::scan()
       nxtChar = getChar();
     }
     // build a loop here to process comments
-    while (nxtChar == '/')
+    if (nxtChar == '/')
     {
       nxtChar = getChar();
       if (nxtChar == '/')
@@ -136,28 +136,53 @@ token Lexer::scan()
         flag = true;
         while (nxtChar != '\n' && nxtChar != EOF) // Add check for EOF to avoid infinite loop)
         {
+          if (nxtChar == '\n')
+            incLineCnt();
           nxtChar = getChar();
         }
-        incLineCnt();
       }
       else if (nxtChar == '*')
       {
         flag = true;
-        while (true)
+        int level = 1; // Initialize comment nesting level to 1
+        while (level > 0)
         {
-          while (nxtChar != '*' && nxtChar != EOF)
-            nxtChar = getChar();
-          nxtChar = getChar();
-          if (nxtChar == '/')
+          while (nxtChar != '*' && nxtChar != '/' && nxtChar != EOF)
           {
             nxtChar = getChar();
-            break;
           }
-          else if (nxtChar == EOF) // Add check for EOF to avoid infinite loop
+          if (nxtChar == EOF) // Add check for EOF to avoid infinite loop
           {
             throw std::runtime_error("Error: Unexpected end of file in comment");
           }
+          else if (nxtChar == '/')
+          {
+            nxtChar = getChar();
+            if (nxtChar == '*')
+            {
+              level++;
+              nxtChar = getChar();
+              continue;
+            }
+            ungetChar();
+          }
+          else if (nxtChar == '*')
+          {
+            nxtChar = getChar();
+            if (nxtChar == '/')
+            {
+              level--;
+              nxtChar = getChar();
+              continue;
+            }
+            ungetChar();
+          }
+          else
+          {
+            nxtChar = getChar();
+          }
         }
+        nxtChar = getChar();
       }
       else
       {
@@ -200,9 +225,9 @@ token Lexer::scan()
   case '+':
   case '-':
   case '*':
-  case '/':   
-  case '[':  
-  case ']':                       // ... and other single char tokens
+  case '/':
+  case '[':
+  case ']':                        // ... and other single char tokens
     tk.type = (token_type)nxtChar; // tk.type = nxtChar; // ASCII value is used as token type
     break;                         // ASCII value used as token type
 

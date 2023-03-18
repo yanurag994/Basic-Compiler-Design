@@ -17,7 +17,7 @@ bool Parser::scan_assume(token_type type) // Complete
       std::cout << "Parsed token " << cur_tk.tokenMark.stringValue << std::endl;
     else if (cur_tk.type < 255)
       std::cout << "Parsed token " << (char)cur_tk.type << std::endl;
-    if(type!=(token_type)'.')
+    if (type != (token_type)'.')
       cur_tk = lexer_handle.scan();
     return true;
   }
@@ -119,7 +119,7 @@ bool Parser::procedure_header() // Complete
 
 bool Parser::parameter_list() // Complete
 {
-  if (scan_assume(VARIABLE_RW) && parameter())
+  if (optional_scan_assume(VARIABLE_RW) && parameter())
   {
     if (optional_scan_assume((token_type)','))
       if (parameter_list())
@@ -128,7 +128,7 @@ bool Parser::parameter_list() // Complete
   }
   else
   {
-    return false;
+    return true;
   }
 }
 
@@ -187,8 +187,8 @@ bool Parser::statement() // Complete
   if (optional_scan_assume(IDENTIFIER))
   {
     if (optional_scan_assume(EQUAL_ASSIGN) && assignment_statement())
-      return true; 
-    if (optional_scan_assume((token_type)'[') && scan_assume(INTEGER_VAL) && optional_scan_assume((token_type)']') && scan_assume(EQUAL_ASSIGN) && assignment_statement())
+      return true;
+    if (optional_scan_assume((token_type)'[') && scan_assume(INTEGER_VAL) && scan_assume((token_type)']') && scan_assume(EQUAL_ASSIGN) && assignment_statement())
       return true;
     if (optional_scan_assume((token_type)'(') && procedure_call())
       return true;
@@ -223,7 +223,7 @@ bool Parser::expression()
 bool Parser::arithOp()
 {
   if (relation())
-    return (optional_scan_assume((token_type)'+') || optional_scan_assume((token_type)'-')) && arithOp();
+    return (optional_scan_assume((token_type)'+') || optional_scan_assume((token_type)'-') || optional_scan_assume((token_type)'*') || optional_scan_assume((token_type)'/')) && arithOp();
   else
     return true;
 }
@@ -231,17 +231,21 @@ bool Parser::arithOp()
 bool Parser::relation()
 {
   if (term())
+  {
     if (optional_scan_assume(LESS_THAN) || optional_scan_assume(LESS_EQUAL) || optional_scan_assume(GREATER_EQUAL) || optional_scan_assume(GREATER_THAN) || optional_scan_assume(EQUALITY) || optional_scan_assume(NOT_EQUAL))
       return relation();
-  return true;
+    else
+      return true;
+  }
+  else
+  {
+    return false;
+  }
 }
 
 bool Parser::term()
 {
-  if (factor())
-    return true;
-  else
-    return true;
+  return factor();
 }
 
 bool Parser::factor() // Complete
@@ -251,10 +255,9 @@ bool Parser::factor() // Complete
   else
   {
     optional_scan_assume((token_type)'-');
-    if (optional_scan_assume(INTEGER_VAL) || destination())
+    if (optional_scan_assume(INTEGER_VAL) || optional_scan_assume(FLOAT_VAL) || (optional_scan_assume(IDENTIFIER) && destination()))
       return true;
-    optional_scan_assume((token_type)'(');
-    if (expression() && scan_assume((token_type)')'))
+    if (optional_scan_assume((token_type)'(') && expression() && scan_assume((token_type)')'))
       return true;
     return false;
   }
@@ -269,17 +272,16 @@ bool Parser::argument_list() // Complete
 
 bool Parser::destination() // Complete
 {
-  if (scan_assume(IDENTIFIER))
+  if (optional_scan_assume((token_type)'['))
   {
-    if (optional_scan_assume((token_type)'['))
-      while (expression())
-        ;
-    if (optional_scan_assume((token_type)'('))
-        procedure_call();
-    return true;
-    return true;
+    while (expression())
+      ;
+    if (scan_assume((token_type)']'))
+      return true;
   }
-  return false;
+  if (optional_scan_assume((token_type)'('))
+    procedure_call();
+  return true;
 }
 
 bool Parser::assignment_statement()
@@ -294,7 +296,7 @@ bool Parser::cond_expression() // Complete
 
 bool Parser::loop_statement()
 {
-  if (assignment_statement() && scan_assume((token_type)';'))
+  if (scan_assume((token_type)'(') && scan_assume(IDENTIFIER) && scan_assume(EQUAL_ASSIGN) && assignment_statement() && scan_assume((token_type)';') && expression() && scan_assume((token_type)')'))
   {
     while (statement() && scan_assume((token_type)';'))
       ;
@@ -306,14 +308,12 @@ bool Parser::loop_statement()
 
 bool Parser::return_statement() // Complete
 {
-  if (expression())
-    return true;
-  return false;
+  return expression();
 }
 
 bool Parser::procedure_call() // Complete
 {
-  if (optional_scan_assume((token_type)')')||(argument_list() && scan_assume((token_type)')')))
+  if (optional_scan_assume((token_type)')') || (argument_list() && scan_assume((token_type)')')))
     return true;
   return false;
 }
