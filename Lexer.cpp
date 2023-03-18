@@ -17,6 +17,7 @@ std::map<std::string, int> Symbols::initialize_token_table()
   symbol_table["is"] = IS_RW;
   symbol_table["if"] = IF_RW;
   symbol_table["then"] = THEN_RW;
+  symbol_table["else"] = ELSE_RW;
   symbol_table["for"] = FOR_RW;
   symbol_table["end"] = END_RW;
   symbol_table["begin"] = BEGIN_RW;
@@ -27,7 +28,10 @@ std::map<std::string, int> Symbols::initialize_token_table()
   symbol_table["variable"] = VARIABLE_RW;
   symbol_table["float"] = FLOAT_RW;
   symbol_table["integer"] = INTEGER_RW;
+  symbol_table["string"] = STRING_RW;
   symbol_table["bool"] = BOOLEAN_RW;
+  symbol_table["true"] = TRUE_RW;
+  symbol_table["false"] = FALSE_RW;
   symbol_table["<"] = LESS_THAN;
   symbol_table[">"] = GREATER_THAN;
   symbol_table["=="] = EQUALITY;
@@ -35,6 +39,7 @@ std::map<std::string, int> Symbols::initialize_token_table()
   symbol_table[">="] = GREATER_EQUAL;
   symbol_table[":="] = EQUAL_ASSIGN;
   symbol_table[":"] = TYPE_SEPERATOR;
+  symbol_table["!="] = NOT_EQUAL;
   return symbol_table;
 }
 
@@ -184,8 +189,10 @@ token Lexer::scan()
       tk.tokenMark.stringValue[i] = nxtChar;
       nxtChar = getChar();
     }
+    tk.tokenMark.stringValue[i] = '\0';
     break;
 
+  case '.':
   case ';':
   case ',':
   case '(':
@@ -193,7 +200,9 @@ token Lexer::scan()
   case '+':
   case '-':
   case '*':
-  case '/':                        // ... and other single char tokens
+  case '/':   
+  case '[':  
+  case ']':                       // ... and other single char tokens
     tk.type = (token_type)nxtChar; // tk.type = nxtChar; // ASCII value is used as token type
     break;                         // ASCII value used as token type
 
@@ -326,10 +335,6 @@ token Lexer::scan()
     ungetChar();
     break;
   }
-
-  case '.':
-    tk.type = T_EOF;
-    break;
 
   case EOF:
     reportError("Unexpected End Of File reached. Expected program to end with \'.\'");

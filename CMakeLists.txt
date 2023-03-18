@@ -5,6 +5,8 @@ project(MyProject)
 # Set C++ standard to 20
 set(CMAKE_CXX_STANDARD 20)
 
+set(CMAKE_CXX_FLAGS "-g")
+
 # Add the library target
 add_library(Lexer STATIC Lexer.cpp Lexer.hpp)
 add_library(Parser STATIC Parser.cpp Parser.hpp)

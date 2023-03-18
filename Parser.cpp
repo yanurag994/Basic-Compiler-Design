@@ -1,45 +1,54 @@
 #include "./Parser.hpp"
 #include <sstream>
 #include <string>
+#include <unistd.h>
 
 using namespace std;
 
-bool Parser::scan_assume(token_type type){
+bool Parser::scan_assume(token_type type) // Complete
+{
   if (cur_tk.type == type)
   {
-    std::cout << "Parsed token " << cur_tk.type << std::endl;
-    cur_tk = lexer_handle.scan();
+    if (cur_tk.type == 275)
+      std::cout << "Parsed token " << cur_tk.tokenMark.intValue << std::endl;
+    else if (cur_tk.type == 277)
+      std::cout << "Parsed token " << cur_tk.tokenMark.stringValue << std::endl;
+    else if (cur_tk.type > 255)
+      std::cout << "Parsed token " << cur_tk.tokenMark.stringValue << std::endl;
+    else if (cur_tk.type < 255)
+      std::cout << "Parsed token " << (char)cur_tk.type << std::endl;
+    if(type!=(token_type)'.')
+      cur_tk = lexer_handle.scan();
     return true;
   }
   else
   {
     std::stringstream ss;
     ss << "At token " << cur_tk.type << ", expecting token " << type << std::endl;
+    sleep(1);
     lexer_handle.reportError(ss.str());
     return false;
   }
 }
 
-bool Parser::optional_scan_assume(token_type type)
+bool Parser::optional_scan_assume(token_type type) // Complete
 {
   if (cur_tk.type == type)
   {
-    std::cout << "Parsed token " << cur_tk.type << std::endl;
+    if (cur_tk.type == 275)
+      std::cout << "Parsed token " << cur_tk.tokenMark.intValue << std::endl;
+    else if (cur_tk.type > 255)
+      std::cout << "Parsed token " << cur_tk.tokenMark.stringValue << std::endl;
+    else if (cur_tk.type < 255)
+      std::cout << "Parsed token " << (char)cur_tk.type << std::endl;
     cur_tk = lexer_handle.scan();
     return true;
   }
   return false;
 }
 
-bool Parser::program(){
-  if (program_header())
-    program_body();
-  if (scan_assume(T_EOF))
-    return true;
-  return false;
-}
-
-bool Parser::resync(token_type type){
+bool Parser::resync(token_type type) // Complete
+{
   while (cur_tk.type != type && cur_tk.type != T_EOF)
     cur_tk = lexer_handle.scan();
   if (cur_tk.type == type)
@@ -52,7 +61,12 @@ bool Parser::resync(token_type type){
   return false;
 }
 
-bool Parser::program_header()
+bool Parser::program() // Complete
+{
+  return program_header() && program_body() && scan_assume((token_type)'.');
+}
+
+bool Parser::program_header() // Complete
 {
   if (scan_assume(PROGRAM_RW) && scan_assume(IDENTIFIER) && scan_assume(IS_RW))
     return true;
@@ -60,21 +74,20 @@ bool Parser::program_header()
     return resync(IS_RW);
 }
 
-bool Parser::program_body()
+bool Parser::program_body() // Complete
 {
   while (declaration())
     ;
-  if (lexer_handle.scan().type != BEGIN_RW)
-    return false;
-  while (statement() && lexer_handle.scan().type == ';')
-    ;
-  if (lexer_handle.scan().type == END_RW)
-    if (lexer_handle.scan().type == PROGRAM_RW)
-      return true;
+  if (scan_assume(BEGIN_RW))
+  {
+    while (statement() && scan_assume((token_type)';'))
+      ;
+    return scan_assume(END_RW) && scan_assume(PROGRAM_RW);
+  }
   return false;
 }
 
-bool Parser::declaration()
+bool Parser::declaration() // Complete
 {
   optional_scan_assume(GLOBAL_RW);
   if (optional_scan_assume(PROCEDURE_RW) && procedure_declaration())
@@ -84,7 +97,61 @@ bool Parser::declaration()
   return false;
 }
 
-bool Parser::variable_declaration()
+bool Parser::procedure_declaration() // Complete
+{
+  if (procedure_header() && procedure_body())
+    return true;
+  return false;
+}
+
+bool Parser::procedure_header() // Complete
+{
+  if (scan_assume(IDENTIFIER) && scan_assume(TYPE_SEPERATOR) && type_mark() && scan_assume((token_type)'('))
+  {
+    parameter_list();
+    if (scan_assume((token_type)')'))
+      return true;
+    return resync((token_type)')');
+  }
+  else
+    return resync((token_type)')');
+}
+
+bool Parser::parameter_list() // Complete
+{
+  if (scan_assume(VARIABLE_RW) && parameter())
+  {
+    if (optional_scan_assume((token_type)','))
+      if (parameter_list())
+        return true;
+    return false;
+  }
+  else
+  {
+    return false;
+  }
+}
+
+bool Parser::parameter() // Complete
+{
+  if (variable_declaration())
+    return true;
+  return false;
+}
+
+bool Parser::procedure_body() // Complete
+{
+  while (declaration())
+    ;
+  if (scan_assume(BEGIN_RW))
+    while (statement() && scan_assume((token_type)';'))
+      ;
+  if (scan_assume(END_RW) && scan_assume(PROCEDURE_RW) && scan_assume((token_type)';'))
+    return true;
+  return false;
+}
+
+bool Parser::variable_declaration() // Complete
 {
   if (scan_assume(IDENTIFIER) && scan_assume(TYPE_SEPERATOR) && type_mark())
   {
@@ -101,33 +168,7 @@ bool Parser::variable_declaration()
     return false;
 }
 
-bool Parser::procedure_header()
-{
-  if (scan_assume(IDENTIFIER) && scan_assume(TYPE_SEPERATOR) && type_mark() && scan_assume((token_type)'('))
-  {
-    parameter_list();
-    if (scan_assume((token_type)')'))
-      return true;
-    return resync((token_type)')');
-  }
-  else
-    return resync((token_type)')');
-}
-
-bool Parser::procedure_declaration()
-{
-  if (procedure_header())
-  {
-    if (procedure_body())
-    {
-      std::cout << "Passed procedure body";
-      return true;
-    }
-  }
-  return false;
-}
-
-bool Parser::type_mark()
+bool Parser::type_mark() // Complete
 {
   if (optional_scan_assume(INTEGER_RW) || optional_scan_assume(FLOAT_RW) || optional_scan_assume(STRING_RW) || optional_scan_assume(BOOLEAN_RW))
     return true;
@@ -135,138 +176,144 @@ bool Parser::type_mark()
   return false;
 }
 
-bool Parser::parameter()
+bool Parser::statement() // Complete
 {
-  if (variable_declaration())
+  if (optional_scan_assume(IF_RW) && if_statement())
     return true;
+  if (optional_scan_assume(FOR_RW) && loop_statement())
+    return true;
+  if (optional_scan_assume(RETURN_RW) && return_statement())
+    return true;
+  if (optional_scan_assume(IDENTIFIER))
+  {
+    if (optional_scan_assume(EQUAL_ASSIGN) && assignment_statement())
+      return true; 
+    if (optional_scan_assume((token_type)'[') && scan_assume(INTEGER_VAL) && optional_scan_assume((token_type)']') && scan_assume(EQUAL_ASSIGN) && assignment_statement())
+      return true;
+    if (optional_scan_assume((token_type)'(') && procedure_call())
+      return true;
+  }
   return false;
 }
 
-bool Parser::parameter_list()
-{ // Need corrections
-  if (scan_assume(VARIABLE_RW) && parameter())
-  {
-    if (optional_scan_assume((token_type)','))
-      if (parameter_list())
-        return true;
-    return false;
-  }
-  else
-  {
-    return false;
-  }
-}
-
-bool Parser::procedure_body()
+bool Parser::if_statement() // Complete
 {
-  while (declaration());
-  if (scan_assume(BEGIN_RW))
+  if (scan_assume((token_type)'(') && cond_expression() && scan_assume((token_type)')') && scan_assume(THEN_RW))
+  {
     while (statement() && scan_assume((token_type)';'))
       ;
-  if (scan_assume(END_RW) && scan_assume(PROCEDURE_RW) && scan_assume((token_type)';'))
-    return true;
+    if (optional_scan_assume(ELSE_RW))
+      while (statement() && scan_assume((token_type)';'))
+        ;
+    if (scan_assume(END_RW) && scan_assume(IF_RW))
+      return true;
+  }
   return false;
 }
 
 bool Parser::expression()
 {
-  scan_assume(IDENTIFIER);
+  optional_scan_assume((token_type)'!');
+  if (arithOp())
+    return (optional_scan_assume((token_type)'|') || optional_scan_assume((token_type)'&')) && expression();
+  else
+    return true;
+}
+
+bool Parser::arithOp()
+{
+  if (relation())
+    return (optional_scan_assume((token_type)'+') || optional_scan_assume((token_type)'-')) && arithOp();
+  else
+    return true;
+}
+
+bool Parser::relation()
+{
+  if (term())
+    if (optional_scan_assume(LESS_THAN) || optional_scan_assume(LESS_EQUAL) || optional_scan_assume(GREATER_EQUAL) || optional_scan_assume(GREATER_THAN) || optional_scan_assume(EQUALITY) || optional_scan_assume(NOT_EQUAL))
+      return relation();
   return true;
 }
 
-bool Parser::argument_list()
+bool Parser::term()
 {
-  if (expression())
-    if (lexer_handle.scan().type != ',')
-    {
-      return true;
-    }
-    else
-    {
-      if (argument_list())
-        return true;
-    }
-  return false;
+  if (factor())
+    return true;
+  else
+    return true;
 }
 
-bool Parser::destination()
+bool Parser::factor() // Complete
 {
-  if (lexer_handle.scan().type != IDENTIFIER)
+  if (optional_scan_assume(TRUE_RW) || optional_scan_assume(FALSE_RW) || optional_scan_assume(STRING_VAL))
+    return true;
+  else
   {
-
+    optional_scan_assume((token_type)'-');
+    if (optional_scan_assume(INTEGER_VAL) || destination())
+      return true;
+    optional_scan_assume((token_type)'(');
+    if (expression() && scan_assume((token_type)')'))
+      return true;
     return false;
   }
-  while (expression())
-    ;
+}
+
+bool Parser::argument_list() // Complete
+{
+  if (expression())
+    return optional_scan_assume((token_type)',') ? argument_list() : true;
   return true;
+}
+
+bool Parser::destination() // Complete
+{
+  if (scan_assume(IDENTIFIER))
+  {
+    if (optional_scan_assume((token_type)'['))
+      while (expression())
+        ;
+    if (optional_scan_assume((token_type)'('))
+        procedure_call();
+    return true;
+    return true;
+  }
+  return false;
 }
 
 bool Parser::assignment_statement()
 {
-  if (!destination())
-    if (lexer_handle.scan().type == EQUAL_ASSIGN)
-      if (expression())
-        return true;
-  return false;
+  return expression();
 }
 
-bool Parser::if_statement()
+bool Parser::cond_expression() // Complete
 {
-  if (scan_assume((token_type)'(') && cond_expression() && scan_assume((token_type)')') && scan_assume(THEN_RW)){
-    while (statement() && scan_assume((token_type)';'));
-    if (optional_scan_assume(ELSE_RW))
-      while (statement() && scan_assume((token_type)';'));
-    if (scan_assume(END_RW)&&scan_assume(IF_RW)&&scan_assume((token_type)';'))
-      return true;
-  }
-  return false;
+  return expression();
 }
 
-bool Parser::cond_expression()
-{
-  return true;
-}
 bool Parser::loop_statement()
 {
-  if (lexer_handle.scan().type != FOR_RW)
+  if (assignment_statement() && scan_assume((token_type)';'))
   {
-
-    return false;
-  }
-  if (assignment_statement() && lexer_handle.scan().type == ';')
-  {
-    while (statement() && lexer_handle.scan().type == ';')
+    while (statement() && scan_assume((token_type)';'))
       ;
-    if (lexer_handle.scan().type == END_RW && lexer_handle.scan().type == FOR_RW)
+    if (scan_assume(END_RW) && scan_assume(FOR_RW))
       return true;
   }
   return false;
 }
 
-bool Parser::return_statement()
+bool Parser::return_statement() // Complete
 {
-  if (expression() && scan_assume((token_type)';'))
+  if (expression())
     return true;
   return false;
 }
 
-bool Parser::procedure_call()
+bool Parser::procedure_call() // Complete
 {
-  if (scan_assume(IDENTIFIER) && argument_list())
+  if (optional_scan_assume((token_type)')')||(argument_list() && scan_assume((token_type)')')))
     return true;
   return false;
 }
-
-bool Parser::statement()
-{
-  if(optional_scan_assume(IF_RW)&&if_statement())
-    return true;
-  if(optional_scan_assume(FOR_RW)&&loop_statement())
-    return true;
-  if(optional_scan_assume(RETURN_RW)&& return_statement())
-    return true;
-  if(optional_scan_assume(IDENTIFIER)&& assignment_statement())
-    return true;
-  return false;
-}
-

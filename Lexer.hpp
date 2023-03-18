@@ -25,6 +25,7 @@ enum token_type
     LESS_EQUAL,
     TYPE_SEPERATOR,
     EQUALITY,
+    NOT_EQUAL,
     NUMBER,
     INTEGER_VAL,
     FLOAT_VAL,
@@ -38,6 +39,8 @@ enum token_type
     PROGRAM_RW,
     IS_RW,
     VARIABLE_RW,
+    TRUE_RW,
+    FALSE_RW,
     T_EOF
 };
 

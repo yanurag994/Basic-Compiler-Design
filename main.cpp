@@ -1,15 +1,16 @@
 #include "./Lexer.hpp"
 #include "./Parser.hpp"
+#include <iostream>
 
-int main(){
-/*   Lexer handle("correct/math.src");
-  std::cout<<"Testing Lexer"<<std::endl;
-  token tk;
-  do{
-    tk=handle.scan();
-    std::cout << tk.type<<" ; "<<tk.tokenMark.intValue<<" ; "<<tk.tokenMark.stringValue<<std::endl;
-  }while(tk.type!=T_EOF); */
+int main(int argc, char* argv[]){
+  if (argc < 2){
+    std::cerr << "Please provide a file path as an argument.\n";
+    return 1;
+  }
 
-  Parser handle("correct/math.src");
-  std::cout<<handle.program();
+  Parser handle(argv[1]);
+  if(handle.program())
+    std::cout<<"Success"<<std::endl;
+  else
+    std::cout<<"Failed"<<std::endl;
 }
