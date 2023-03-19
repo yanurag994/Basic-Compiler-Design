@@ -3,16 +3,12 @@
 #include <string>
 #include <unistd.h>
 
-using namespace std;
-
-bool Parser::scan_assume(token_type type) // Complete
+bool Parser::scan_assume(token_type type, token *returned) // Complete
 {
   if (cur_tk.type == type)
   {
     if (cur_tk.type == 275)
       std::cout << "Parsed token " << cur_tk.tokenMark.intValue << std::endl;
-    else if (cur_tk.type == 277)
-      std::cout << "Parsed token " << cur_tk.tokenMark.stringValue << std::endl;
     else if (cur_tk.type > 255)
       std::cout << "Parsed token " << cur_tk.tokenMark.stringValue << std::endl;
     else if (cur_tk.type < 255)
@@ -25,13 +21,12 @@ bool Parser::scan_assume(token_type type) // Complete
   {
     std::stringstream ss;
     ss << "At token " << cur_tk.type << ", expecting token " << type << std::endl;
-    sleep(1);
     lexer_handle.reportError(ss.str());
     return false;
   }
 }
 
-bool Parser::optional_scan_assume(token_type type) // Complete
+bool Parser::optional_scan_assume(token_type type, token *returned) // Complete
 {
   if (cur_tk.type == type)
   {
@@ -41,13 +36,14 @@ bool Parser::optional_scan_assume(token_type type) // Complete
       std::cout << "Parsed token " << cur_tk.tokenMark.stringValue << std::endl;
     else if (cur_tk.type < 255)
       std::cout << "Parsed token " << (char)cur_tk.type << std::endl;
-    cur_tk = lexer_handle.scan();
+    if (type != (token_type)'.')
+      cur_tk = lexer_handle.scan();
     return true;
   }
   return false;
 }
 
-bool Parser::resync(token_type type) // Complete
+bool Parser::resync(token_type type, bool ahead = false) // Complete
 {
   while (cur_tk.type != type && cur_tk.type != T_EOF)
     cur_tk = lexer_handle.scan();
@@ -57,21 +53,23 @@ bool Parser::resync(token_type type) // Complete
     std::cout << "Skipping till token " << cur_tk.type << std::endl;
     return true;
   }
-  std::cout << "Unable to continue parsing. Reached EOF while searching for resync token" << std::endl;
+  std::cout << "Unable to continue parsing. Reached EOF while attempting to resync" << std::endl;
   return false;
+}
+
+bool Parser::typeCheck(token first, token second, token_type op)
+{
+  return true;
 }
 
 bool Parser::program() // Complete
 {
-  return program_header() && program_body() && scan_assume((token_type)'.');
+  return (program_header() && program_body() && scan_assume((token_type)'.')) ? true : false;
 }
 
 bool Parser::program_header() // Complete
 {
-  if (scan_assume(PROGRAM_RW) && scan_assume(IDENTIFIER) && scan_assume(IS_RW))
-    return true;
-  else
-    return resync(IS_RW);
+  return (scan_assume(PROGRAM_RW) && scan_assume(IDENTIFIER) && scan_assume(IS_RW)) ? true : resync(IS_RW);
 }
 
 bool Parser::program_body() // Complete
@@ -84,7 +82,7 @@ bool Parser::program_body() // Complete
       ;
     return scan_assume(END_RW) && scan_assume(PROGRAM_RW);
   }
-  return false;
+  return resync(PROGRAM_RW);
 }
 
 bool Parser::declaration() // Complete
@@ -99,44 +97,23 @@ bool Parser::declaration() // Complete
 
 bool Parser::procedure_declaration() // Complete
 {
-  if (procedure_header() && procedure_body())
-    return true;
-  return false;
+  return (procedure_header() && procedure_body()) ? true : resync(PROCEDURE_RW, true);
 }
 
 bool Parser::procedure_header() // Complete
 {
-  if (scan_assume(IDENTIFIER) && scan_assume(TYPE_SEPERATOR) && type_mark() && scan_assume((token_type)'('))
-  {
-    parameter_list();
-    if (scan_assume((token_type)')'))
-      return true;
-    return resync((token_type)')');
-  }
-  else
-    return resync((token_type)')');
+  tokenProcedure proc = tokenProcedure();
+  return (scan_assume(IDENTIFIER) && scan_assume(TYPE_SEPERATOR) && type_mark() && scan_assume((token_type)'(') && parameter_list() && scan_assume((token_type)')')) ? true : resync((token_type)')');
 }
 
 bool Parser::parameter_list() // Complete
 {
-  if (optional_scan_assume(VARIABLE_RW) && parameter())
-  {
-    if (optional_scan_assume((token_type)','))
-      if (parameter_list())
-        return true;
-    return false;
-  }
-  else
-  {
-    return true;
-  }
+  return optional_scan_assume(VARIABLE_RW) ? parameter() && (optional_scan_assume((token_type)',') ? parameter_list() : true) : true;
 }
 
 bool Parser::parameter() // Complete
 {
-  if (variable_declaration())
-    return true;
-  return false;
+  return variable_declaration();
 }
 
 bool Parser::procedure_body() // Complete
@@ -148,19 +125,19 @@ bool Parser::procedure_body() // Complete
       ;
   if (scan_assume(END_RW) && scan_assume(PROCEDURE_RW) && scan_assume((token_type)';'))
     return true;
+  lexer_handle.reportWarning("Resync not possible at this stage");
   return false;
 }
 
 bool Parser::variable_declaration() // Complete
 {
-  if (scan_assume(IDENTIFIER) && scan_assume(TYPE_SEPERATOR) && type_mark())
+  tokenVariable var;
+  if (scan_assume(IDENTIFIER, &var) && scan_assume(TYPE_SEPERATOR) && type_mark(&(var.dataType)))
   {
     if (optional_scan_assume((token_type)'['))
     {
-      if (scan_assume(INTEGER_VAL) && scan_assume((token_type)']'))
-        return true;
-      else
-        return resync((token_type)']');
+      tokenArray *arr = static_cast<tokenArray *>(&var);
+      return (expression() && scan_assume((token_type)']')) ? true : resync((token_type)']');
     }
     return true;
   }
@@ -168,12 +145,17 @@ bool Parser::variable_declaration() // Complete
     return false;
 }
 
-bool Parser::type_mark() // Complete
+bool Parser::type_mark(token *returned) // Complete
 {
-  if (optional_scan_assume(INTEGER_RW) || optional_scan_assume(FLOAT_RW) || optional_scan_assume(STRING_RW) || optional_scan_assume(BOOLEAN_RW))
+  if (optional_scan_assume(INTEGER_RW, returned) || optional_scan_assume(FLOAT_RW, returned) || optional_scan_assume(STRING_RW, returned) || optional_scan_assume(BOOLEAN_RW, returned))
+  {
     return true;
-  lexer_handle.reportError("Expected a type identifier");
-  return false;
+  }
+  else
+  {
+    lexer_handle.reportError("Expected a type identifier");
+    return false;
+  }
 }
 
 bool Parser::statement() // Complete
@@ -265,9 +247,7 @@ bool Parser::factor() // Complete
 
 bool Parser::argument_list() // Complete
 {
-  if (expression())
-    return optional_scan_assume((token_type)',') ? argument_list() : true;
-  return true;
+  return expression() ? (optional_scan_assume((token_type)',') ? argument_list() : true) : true;
 }
 
 bool Parser::destination() // Complete
@@ -313,7 +293,5 @@ bool Parser::return_statement() // Complete
 
 bool Parser::procedure_call() // Complete
 {
-  if (optional_scan_assume((token_type)')') || (argument_list() && scan_assume((token_type)')')))
-    return true;
-  return false;
+  return (optional_scan_assume((token_type)')') || (argument_list() && scan_assume((token_type)')')));
 }

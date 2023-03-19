@@ -64,8 +64,23 @@ struct token
     token_type type;
     token_type hash;
     tokenMk tokenMark;
-    std::vector<token> arglist;
-    token *returnType;
+};
+
+struct tokenVariable : token
+{
+    token dataType;
+};
+
+struct tokenArray : tokenVariable
+{
+    int size;
+    token baseType;
+};
+
+struct tokenProcedure : token
+{
+    std::vector<token> argType;
+    token returnType;
 };
 
 class Symbols

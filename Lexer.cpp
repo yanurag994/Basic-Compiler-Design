@@ -164,7 +164,6 @@ token Lexer::scan()
               nxtChar = getChar();
               continue;
             }
-            ungetChar();
           }
           else if (nxtChar == '*')
           {
@@ -175,7 +174,6 @@ token Lexer::scan()
               nxtChar = getChar();
               continue;
             }
-            ungetChar();
           }
           else
           {
@@ -192,13 +190,6 @@ token Lexer::scan()
     }
     if (flag == false) // Break the loop if no comment or whitespace is encountered
       break;
-  }
-
-  while (nxtChar == '\n' || nxtChar == '\t' || nxtChar == '\r' || nxtChar == ' ')
-  {
-    if (nxtChar == '\n')
-      incLineCnt();
-    nxtChar = getChar();
   }
 
   switch (nxtChar)
@@ -222,8 +213,6 @@ token Lexer::scan()
   case ',':
   case '(':
   case ')':
-  case '+':
-  case '-':
   case '*':
   case '/':
   case '[':
@@ -335,7 +324,19 @@ token Lexer::scan()
   case '7':
   case '8':
   case '9': //.... and other digits
+  case '+':
+  case '-':
   {
+    if (nxtChar == '+' || nxtChar == '-')
+    {
+      tk.type = (token_type)nxtChar;
+      nxtChar = getChar();
+      if (!isDigit(nxtChar))
+      {
+        ungetChar();
+        break;
+      }
+    }
     tk.type = NUMBER;
     double temp;
     temp = nxtChar - '0';

@@ -5,9 +5,10 @@ class Parser
 private:
     Lexer lexer_handle;
     token cur_tk;
-    bool scan_assume(token_type);
-    bool optional_scan_assume(token_type);
-    bool resync(token_type);
+    bool scan_assume(token_type, token *returned = nullptr);
+    bool optional_scan_assume(token_type, token *returned = nullptr);
+    bool resync(token_type, bool);
+    bool typeCheck(token, token, token_type);
     bool program_header();
     bool program_body();
     bool declaration();
@@ -17,7 +18,7 @@ private:
     bool parameter();
     bool procedure_body();
     bool variable_declaration();
-    bool type_mark();
+    bool type_mark(token *returned = nullptr);
     bool statement();
     bool procedure_call();
     bool assignment_statement();
