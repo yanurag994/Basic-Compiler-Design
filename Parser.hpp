@@ -14,10 +14,10 @@ private:
     bool declaration();
     bool procedure_declaration();
     bool procedure_header();
-    bool parameter_list();
-    bool parameter();
+    bool parameter_list(std::vector<tokenVariable> *);
+    bool parameter(std::vector<tokenVariable> *);
     bool procedure_body();
-    bool variable_declaration();
+    bool variable_declaration(tokenVariable *);
     bool type_mark(token *returned = nullptr);
     bool statement();
     bool procedure_call();

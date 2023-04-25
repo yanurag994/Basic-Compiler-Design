@@ -7,6 +7,12 @@ bool Parser::scan_assume(token_type type, token *returned) // Complete
 {
   if (cur_tk.type == type)
   {
+    if (returned)
+    {
+      returned->type = cur_tk.type;
+      returned->tokenMark = cur_tk.tokenMark;
+      returned->hash = cur_tk.hash;
+    }
     if (cur_tk.type == 275)
       std::cout << "Parsed token " << cur_tk.tokenMark.intValue << std::endl;
     else if (cur_tk.type > 255)
@@ -30,6 +36,11 @@ bool Parser::optional_scan_assume(token_type type, token *returned) // Complete
 {
   if (cur_tk.type == type)
   {
+    if (returned)
+    {
+      returned->type = cur_tk.type;
+      returned->tokenMark = cur_tk.tokenMark;
+    }
     if (cur_tk.type == 275)
       std::cout << "Parsed token " << cur_tk.tokenMark.intValue << std::endl;
     else if (cur_tk.type > 255)
@@ -90,7 +101,8 @@ bool Parser::declaration() // Complete
   optional_scan_assume(GLOBAL_RW);
   if (optional_scan_assume(PROCEDURE_RW) && procedure_declaration())
     return true;
-  if (optional_scan_assume(VARIABLE_RW) && variable_declaration() && scan_assume((token_type)';'))
+  tokenVariable var;
+  if (optional_scan_assume(VARIABLE_RW) && variable_declaration(&var) && scan_assume((token_type)';'))
     return true;
   return false;
 }
@@ -102,18 +114,30 @@ bool Parser::procedure_declaration() // Complete
 
 bool Parser::procedure_header() // Complete
 {
-  tokenProcedure proc = tokenProcedure();
-  return (scan_assume(IDENTIFIER) && scan_assume(TYPE_SEPERATOR) && type_mark() && scan_assume((token_type)'(') && parameter_list() && scan_assume((token_type)')')) ? true : resync((token_type)')');
+  lexer_handle.enterScope();
+  tokenProcedure proc;
+  if (scan_assume(IDENTIFIER, &proc) && scan_assume(TYPE_SEPERATOR) && type_mark(&proc.dataType) && scan_assume((token_type)'(') && parameter_list(&proc.argType) && scan_assume((token_type)')'))
+  {
+    std::cout << proc.tokenMark.stringValue << " " << proc.dataType.tokenMark.stringValue << " ";
+    for (auto i : proc.argType)
+      std::cout << i.tokenMark.stringValue << " ";
+    return true;
+  }
+  else
+    return resync((token_type)')');
 }
 
-bool Parser::parameter_list() // Complete
+bool Parser::parameter_list(std::vector<tokenVariable> *args) // Complete
 {
-  return optional_scan_assume(VARIABLE_RW) ? parameter() && (optional_scan_assume((token_type)',') ? parameter_list() : true) : true;
+  return optional_scan_assume(VARIABLE_RW) ? parameter(args) && (optional_scan_assume((token_type)',') ? parameter_list(args) : true) : true;
 }
 
-bool Parser::parameter() // Complete
+bool Parser::parameter(std::vector<tokenVariable> *args) // Complete
 {
-  return variable_declaration();
+  tokenVariable var;
+  auto temp = variable_declaration(&var);
+  args->push_back(var);
+  return temp;
 }
 
 bool Parser::procedure_body() // Complete
@@ -124,21 +148,27 @@ bool Parser::procedure_body() // Complete
     while (statement() && scan_assume((token_type)';'))
       ;
   if (scan_assume(END_RW) && scan_assume(PROCEDURE_RW) && scan_assume((token_type)';'))
+  {
+    lexer_handle.exitScope();
     return true;
+  }
   lexer_handle.reportWarning("Resync not possible at this stage");
   return false;
 }
 
-bool Parser::variable_declaration() // Complete
+bool Parser::variable_declaration(tokenVariable *var) // Complete
 {
-  tokenVariable var;
-  if (scan_assume(IDENTIFIER, &var) && scan_assume(TYPE_SEPERATOR) && type_mark(&(var.dataType)))
+  if (scan_assume(IDENTIFIER, var) && scan_assume(TYPE_SEPERATOR) && type_mark(&(var->dataType)))
   {
     if (optional_scan_assume((token_type)'['))
     {
-      tokenArray *arr = static_cast<tokenArray *>(&var);
-      return (expression() && scan_assume((token_type)']')) ? true : resync((token_type)']');
+      auto exp = expression();
+      tokenArray *arr = static_cast<tokenArray *>(var);
+      arr->size = exp;
+      std::cout << arr->tokenMark.stringValue << " " << arr->dataType.tokenMark.stringValue << " len " << arr->size;
+      return (exp && scan_assume((token_type)']')) ? true : resync((token_type)']');
     }
+    std::cout << var->tokenMark.stringValue << " " << var->dataType.tokenMark.stringValue << " hash " << var->hash;
     return true;
   }
   else

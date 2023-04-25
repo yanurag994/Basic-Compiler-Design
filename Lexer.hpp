@@ -44,14 +44,6 @@ enum token_type
     T_EOF
 };
 
-struct Scope
-{
-    std::map<std::string, int> symbol_table;
-    Scope *next;
-    Scope *previous;
-    Scope(std::map<std::string, int> symbol_table, Scope *previous, Scope *next) : symbol_table(symbol_table), previous(previous), next(next){};
-};
-
 struct tokenMk
 {
     int intValue;
@@ -74,13 +66,19 @@ struct tokenVariable : token
 struct tokenArray : tokenVariable
 {
     int size;
-    token baseType;
 };
 
-struct tokenProcedure : token
+struct tokenProcedure : tokenVariable
 {
-    std::vector<token> argType;
-    token returnType;
+    std::vector<tokenVariable> argType;
+};
+
+struct Scope
+{
+    std::map<std::string, int> symbol_table;
+    Scope *next;
+    Scope *previous;
+    Scope(std::map<std::string, int> symbol_table, Scope *previous, Scope *next) : symbol_table(symbol_table), previous(previous), next(next){};
 };
 
 class Symbols
@@ -106,7 +104,6 @@ private:
     bool errorStatus = false;
     int lineCnt = 1; // the line count; initialized to zero
     Symbols *symbols;
-    std::map<std::string, int> &symbol_table = symbols->symbol_table;
 
 public:
     Lexer(std::string filename)
@@ -130,6 +127,22 @@ public:
     {
         filePtr.close();
     }
+    void enterScope()
+    {
+        symbols->enterScope();
+    };
+    void exitScope()
+    {
+        symbols->exitScope();
+    };
+    void enterSoftScope()
+    {
+        symbols->enterSoftScope();
+    };
+    void exitSoftScope()
+    {
+        symbols->enterSoftScope();
+    };
     char getChar();
     void ungetChar();
     int getLineCnt();

@@ -47,11 +47,16 @@ void Symbols::enterScope()
 {
   current->next = (!current->next) ? new Scope(initialize_token_table(), nullptr, current) : current->next;
   current = current->next;
+  symbol_table = current->symbol_table;  
+  return;
 }
 void Symbols::exitScope()
 {
   if (current->previous)
+  {
     current = current->previous;
+    symbol_table = current->symbol_table;
+  }
   else
     std::runtime_error("Hit the exitScope call at outermost scope");
 }
@@ -59,12 +64,16 @@ void Symbols::exitScope()
 void Symbols::enterSoftScope()
 {
   current = new Scope(current->symbol_table, nullptr, current);
+  symbol_table = current->symbol_table;
 }
 
 void Symbols::exitSoftScope()
 {
   if (current->previous)
+  {
     current = current->previous;
+    symbol_table = current->symbol_table;
+  }
   else
     std::runtime_error("Hit the exitSoftScope call at outermost scope");
 }
