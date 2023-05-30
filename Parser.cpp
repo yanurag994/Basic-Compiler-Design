@@ -7,12 +7,7 @@ bool Parser::scan_assume(token_type type, token *returned) // Complete
 {
   if (cur_tk.type == type)
   {
-    if (returned)
-    {
-      returned->type = cur_tk.type;
-      returned->tokenMark = cur_tk.tokenMark;
-      returned->hash = cur_tk.hash;
-    }
+    if (cur_tk.type==IDENTIFIER) token_lookup();
     if (cur_tk.type == 275)
       std::cout << "Parsed token " << cur_tk.tokenMark.intValue << std::endl;
     else if (cur_tk.type > 255)
@@ -114,7 +109,6 @@ bool Parser::procedure_declaration() // Complete
 
 bool Parser::procedure_header() // Complete
 {
-  lexer_handle.enterScope();
   tokenProcedure proc;
   if (scan_assume(IDENTIFIER, &proc) && scan_assume(TYPE_SEPERATOR) && type_mark(&proc.dataType) && scan_assume((token_type)'(') && parameter_list(&proc.argType) && scan_assume((token_type)')'))
   {
@@ -149,7 +143,6 @@ bool Parser::procedure_body() // Complete
       ;
   if (scan_assume(END_RW) && scan_assume(PROCEDURE_RW) && scan_assume((token_type)';'))
   {
-    lexer_handle.exitScope();
     return true;
   }
   lexer_handle.reportWarning("Resync not possible at this stage");
@@ -168,7 +161,7 @@ bool Parser::variable_declaration(tokenVariable *var) // Complete
       std::cout << arr->tokenMark.stringValue << " " << arr->dataType.tokenMark.stringValue << " len " << arr->size;
       return (exp && scan_assume((token_type)']')) ? true : resync((token_type)']');
     }
-    std::cout << var->tokenMark.stringValue << " " << var->dataType.tokenMark.stringValue << " hash " << var->hash;
+    std::cout << var->tokenMark.stringValue << " " << var->dataType.tokenMark.stringValue;
     return true;
   }
   else
@@ -324,4 +317,39 @@ bool Parser::return_statement() // Complete
 bool Parser::procedure_call() // Complete
 {
   return (optional_scan_assume((token_type)')') || (argument_list() && scan_assume((token_type)')')));
+}
+
+void Symbols::enterScope()
+{
+  current->next = (!current->next) ? new Scope(std::map<std::string, int>(), nullptr, current) : current->next;
+  current = current->next;
+  symbol_table = current->symbol_table;  
+  return;
+}
+void Symbols::exitScope()
+{
+  if (current->previous)
+  {
+    current = current->previous;
+    symbol_table = current->symbol_table;
+  }
+  else
+    std::runtime_error("Hit the exitScope call at outermost scope");
+}
+
+void Symbols::enterSoftScope()
+{
+  current = new Scope(current->symbol_table, nullptr, current);
+  symbol_table = current->symbol_table;
+}
+
+void Symbols::exitSoftScope()
+{
+  if (current->previous)
+  {
+    current = current->previous;
+    symbol_table = current->symbol_table;
+  }
+  else
+    std::runtime_error("Hit the exitSoftScope call at outermost scope");
 }

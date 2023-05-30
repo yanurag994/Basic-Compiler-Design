@@ -10,7 +10,10 @@ int main(int argc, char* argv[]){
 
   Parser handle(argv[1]);
   if(handle.program())
+    {
     std::cout<<"Success"<<std::endl;
+    std::cout<<handle.output.str();
+    }
   else
     std::cout<<"Failed"<<std::endl;
 }

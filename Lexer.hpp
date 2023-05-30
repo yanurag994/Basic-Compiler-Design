@@ -54,7 +54,6 @@ struct tokenMk
 struct token
 {
     token_type type;
-    token_type hash;
     tokenMk tokenMark;
 };
 
@@ -73,29 +72,6 @@ struct tokenProcedure : tokenVariable
     std::vector<tokenVariable> argType;
 };
 
-struct Scope
-{
-    std::map<std::string, int> symbol_table;
-    Scope *next;
-    Scope *previous;
-    Scope(std::map<std::string, int> symbol_table, Scope *previous, Scope *next) : symbol_table(symbol_table), previous(previous), next(next){};
-};
-
-class Symbols
-{
-private:
-    Scope *current; // pointer to the first node in the list
-    std::map<std::string, int> initialize_token_table();
-
-public:
-    std::map<std::string, int> &symbol_table;
-    Symbols() : current(new Scope(initialize_token_table(), nullptr, nullptr)), symbol_table(current->symbol_table) {}
-    void enterScope();
-    void exitScope();
-    void enterSoftScope();
-    void exitSoftScope();
-};
-
 class Lexer
 {
 private:
@@ -103,7 +79,7 @@ private:
     std::string fileName;
     bool errorStatus = false;
     int lineCnt = 1; // the line count; initialized to zero
-    Symbols *symbols;
+    std::map<std::string, token_type> symbol_table;
 
 public:
     Lexer(std::string filename)
@@ -116,7 +92,33 @@ public:
             {
                 throw std::runtime_error("Failed to open file");
             }
-            symbols = new Symbols();
+            symbol_table["program"] = PROGRAM_RW;
+            symbol_table["is"] = IS_RW;
+            symbol_table["if"] = IF_RW;
+            symbol_table["then"] = THEN_RW;
+            symbol_table["else"] = ELSE_RW;
+            symbol_table["for"] = FOR_RW;
+            symbol_table["end"] = END_RW;
+            symbol_table["begin"] = BEGIN_RW;
+            symbol_table["return"] = RETURN_RW;
+            symbol_table["procedure"] = PROCEDURE_RW;
+            symbol_table["while"] = WHILE_RW;
+            symbol_table["global"] = GLOBAL_RW;
+            symbol_table["variable"] = VARIABLE_RW;
+            symbol_table["float"] = FLOAT_RW;
+            symbol_table["integer"] = INTEGER_RW;
+            symbol_table["string"] = STRING_RW;
+            symbol_table["bool"] = BOOLEAN_RW;
+            symbol_table["true"] = TRUE_RW;
+            symbol_table["false"] = FALSE_RW;
+            symbol_table["<"] = LESS_THAN;
+            symbol_table[">"] = GREATER_THAN;
+            symbol_table["=="] = EQUALITY;
+            symbol_table["<="] = LESS_EQUAL;
+            symbol_table[">="] = GREATER_EQUAL;
+            symbol_table[":="] = EQUAL_ASSIGN;
+            symbol_table[":"] = TYPE_SEPERATOR;
+            symbol_table["!="] = NOT_EQUAL;
         }
         catch (const std::exception &e)
         {
@@ -127,22 +129,6 @@ public:
     {
         filePtr.close();
     }
-    void enterScope()
-    {
-        symbols->enterScope();
-    };
-    void exitScope()
-    {
-        symbols->exitScope();
-    };
-    void enterSoftScope()
-    {
-        symbols->enterSoftScope();
-    };
-    void exitSoftScope()
-    {
-        symbols->enterSoftScope();
-    };
     char getChar();
     void ungetChar();
     int getLineCnt();
