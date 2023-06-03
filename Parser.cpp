@@ -7,7 +7,11 @@ bool Parser::scan_assume(token_type type, token *returned) // Complete
 {
   if (cur_tk.type == type)
   {
-    if (cur_tk.type==IDENTIFIER) token_lookup();
+    if (returned)
+    {
+      returned->type = cur_tk.type;
+      returned->tokenMark = cur_tk.tokenMark;
+    }
     if (cur_tk.type == 275)
       std::cout << "Parsed token " << cur_tk.tokenMark.intValue << std::endl;
     else if (cur_tk.type > 255)
@@ -96,7 +100,7 @@ bool Parser::declaration() // Complete
   optional_scan_assume(GLOBAL_RW);
   if (optional_scan_assume(PROCEDURE_RW) && procedure_declaration())
     return true;
-  tokenVariable var;
+  token var;
   if (optional_scan_assume(VARIABLE_RW) && variable_declaration(&var) && scan_assume((token_type)';'))
     return true;
   return false;
@@ -109,12 +113,14 @@ bool Parser::procedure_declaration() // Complete
 
 bool Parser::procedure_header() // Complete
 {
-  tokenProcedure proc;
+  symbols->enterScope();
+  token proc;
   if (scan_assume(IDENTIFIER, &proc) && scan_assume(TYPE_SEPERATOR) && type_mark(&proc.dataType) && scan_assume((token_type)'(') && parameter_list(&proc.argType) && scan_assume((token_type)')'))
   {
     std::cout << proc.tokenMark.stringValue << " " << proc.dataType.tokenMark.stringValue << " ";
     for (auto i : proc.argType)
       std::cout << i.tokenMark.stringValue << " ";
+    std::cout << std::endl;
     return true;
   }
   else
@@ -143,6 +149,7 @@ bool Parser::procedure_body() // Complete
       ;
   if (scan_assume(END_RW) && scan_assume(PROCEDURE_RW) && scan_assume((token_type)';'))
   {
+    symbols->exitScope();
     return true;
   }
   lexer_handle.reportWarning("Resync not possible at this stage");
@@ -158,10 +165,10 @@ bool Parser::variable_declaration(tokenVariable *var) // Complete
       auto exp = expression();
       tokenArray *arr = static_cast<tokenArray *>(var);
       arr->size = exp;
-      std::cout << arr->tokenMark.stringValue << " " << arr->dataType.tokenMark.stringValue << " len " << arr->size;
+      std::cout << arr->tokenMark.stringValue << " " << arr->dataType.tokenMark.stringValue << " len " << arr->size<<std::endl;
       return (exp && scan_assume((token_type)']')) ? true : resync((token_type)']');
     }
-    std::cout << var->tokenMark.stringValue << " " << var->dataType.tokenMark.stringValue;
+    std::cout << var->tokenMark.stringValue << " " << var->dataType.tokenMark.stringValue<<std::endl;
     return true;
   }
   else
@@ -183,13 +190,14 @@ bool Parser::type_mark(token *returned) // Complete
 
 bool Parser::statement() // Complete
 {
+  tokenVariable* temp;
   if (optional_scan_assume(IF_RW) && if_statement())
     return true;
   if (optional_scan_assume(FOR_RW) && loop_statement())
     return true;
   if (optional_scan_assume(RETURN_RW) && return_statement())
     return true;
-  if (optional_scan_assume(IDENTIFIER))
+  if (optional_scan_assume(IDENTIFIER,temp))
   {
     if (optional_scan_assume(EQUAL_ASSIGN) && assignment_statement())
       return true;
@@ -321,7 +329,7 @@ bool Parser::procedure_call() // Complete
 
 void Symbols::enterScope()
 {
-  current->next = (!current->next) ? new Scope(std::map<std::string, int>(), nullptr, current) : current->next;
+  current->next = (!current->next) ? new Scope(std::map<std::string, token>(), nullptr, current) : current->next;
   current = current->next;
   symbol_table = current->symbol_table;  
   return;

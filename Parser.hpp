@@ -2,14 +2,33 @@
 #include <vector>
 #include <sstream>
 
-int symbol_table_hash_gen;
+struct Scope
+{
+    std::map<std::string, token> symbol_table;
+    Scope *next;
+    Scope *previous;
+    Scope(std::map<std::string, token> symbol_table, Scope *previous, Scope *next) : symbol_table(symbol_table), previous(previous), next(next){};
+};
+
+class Symbols
+{
+private:
+    Scope *current; // pointer to the first node in the list
+
+public:
+    std::map<std::string, token> &symbol_table;
+    Symbols() : current(new Scope(std::map<std::string, token>(), nullptr, nullptr)), symbol_table(current->symbol_table) {}
+    void enterScope();
+    void exitScope();
+    void enterSoftScope();
+    void exitSoftScope();
+};
 
 class Parser
 {
 private:
-    Lexer lexer_handle;
+    Lexer lexer_handle; 
     token cur_tk;
-    std::vector<token> def_token_stack;
     bool scan_assume(token_type, token *returned = nullptr);
     bool optional_scan_assume(token_type, token *returned = nullptr);
     bool resync(token_type, bool);
@@ -38,10 +57,6 @@ private:
     bool term();
     bool factor();
     bool argument_list();
-    void token_lookup()
-    {
-        //Nothing;
-    }
 
 public:
     std::stringstream output;
@@ -53,26 +68,3 @@ public:
     cur_tk = lexer_handle.scan(); 
     }
 };
-
-struct Scope
-{
-    std::map<std::string, int> symbol_table;
-    Scope *next;
-    Scope *previous;
-    Scope(std::map<std::string, int> symbol_table, Scope *previous, Scope *next) : symbol_table(symbol_table), previous(previous), next(next){};
-};
-
-class Symbols
-{
-private:
-    Scope *current; // pointer to the first node in the list
-
-public:
-    std::map<std::string, int> &symbol_table;
-    Symbols() : current(new Scope(std::map<std::string, int>(), nullptr, nullptr)), symbol_table(current->symbol_table) {}
-    void enterScope();
-    void exitScope();
-    void enterSoftScope();
-    void exitSoftScope();
-};
-

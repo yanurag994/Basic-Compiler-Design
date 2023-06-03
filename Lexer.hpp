@@ -51,26 +51,28 @@ struct tokenMk
     char stringValue[1024];
 };
 
-struct token
+struct base_token
 {
     token_type type;
     tokenMk tokenMark;
 };
 
-struct tokenVariable : token
+struct tokenVariable
 {
-    token dataType;
+    base_token dataType;
 };
 
-struct tokenArray : tokenVariable
+struct tokenArray
 {
     int size;
 };
 
-struct tokenProcedure : tokenVariable
+struct tokenProcedure
 {
     std::vector<tokenVariable> argType;
 };
+
+struct token : base_token , tokenVariable, tokenArray,tokenProcedure {};
 
 class Lexer
 {
