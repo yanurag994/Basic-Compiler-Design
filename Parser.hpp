@@ -4,23 +4,23 @@
 
 struct Scope
 {
-    std::map<std::string, token*> symbol_table;
-    Scope *next;
+    std::map<std::string, token> symbol_table;
     Scope *previous;
-    Scope(std::map<std::string, token*> symbol_table, Scope *previous, Scope *next) : symbol_table(symbol_table), previous(previous), next(next){};
+    Scope(std::map<std::string, token> symbol_table, Scope *previous)
+        : symbol_table(symbol_table), previous(previous) {}
 };
 
 class Symbols
 {
 private:
+    int Hashgen = 1000;
     Scope *current; // pointer to the first node in the list
-
 public:
-    std::map<std::string, token*> &symbol_table;
-    Symbols() : current(new Scope(std::map<std::string, token*>(), nullptr, nullptr)), symbol_table(current->symbol_table) {}
+    Symbols() : current(new Scope(std::map<std::string, token>(), nullptr)) {}
     void enterScope();
-    void exitScope();
     void enterSoftScope();
+    void exitScope();
+    void HashLookup(token &search_for);
 };
 
 class Parser
@@ -40,7 +40,7 @@ private:
     bool parameter_list(std::vector<token*> *);
     bool parameter(std::vector<token*> *);
     bool procedure_body();
-    bool variable_declaration(token*);
+    bool variable_declaration(tokenVariable*);
     bool type_mark(std::vector<token*> *returned = nullptr);
     bool type_mark(token*returned = nullptr);
     bool statement();
