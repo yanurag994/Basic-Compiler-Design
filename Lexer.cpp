@@ -35,7 +35,7 @@ void Lexer::reportWarning(std::string warning) { std::cout << "WARNING at linel"
 
 bool Lexer::getErrorStatus() { return errorStatus; }
 
-token_type Lexer::hashLook(std::string lexeme)
+token_type Lexer::tokenTypeLookup(std::string lexeme)
 {
   auto symbol = symbol_table.find(lexeme);
   return (symbol == symbol_table.end()) ? IDENTIFIER : static_cast<token_type>(symbol->second);
@@ -217,7 +217,7 @@ token Lexer::scan()
     }
     ungetChar();
     tk.tokenMark.stringValue[i] = '\0';
-    tk.type = hashLook(std::string(tk.tokenMark.stringValue));
+    tk.type = tokenTypeLookup(std::string(tk.tokenMark.stringValue));
     break;
   }
 
@@ -239,7 +239,7 @@ token Lexer::scan()
       ungetChar();
       tk.tokenMark.stringValue[1] = '\0';
     }
-    tk.type = hashLook(std::string(tk.tokenMark.stringValue));
+    tk.type = tokenTypeLookup(std::string(tk.tokenMark.stringValue));
     break;
   }
 

@@ -51,28 +51,23 @@ struct tokenMk
     char stringValue[1024];
 };
 
-struct base_token
+struct token
 {
     token_type type;
     tokenMk tokenMark;
 };
 
-struct tokenVariable
+struct tokenVariable : token
 {
-    base_token dataType;
+    token_type dataType;
+    int size=-1;
 };
 
-struct tokenArray
-{
-    int size;
-};
-
-struct tokenProcedure
+struct tokenProcedure : token
 {
     std::vector<tokenVariable> argType;
+    tokenVariable retType;
 };
-
-struct token : base_token , tokenVariable, tokenArray,tokenProcedure {};
 
 class Lexer
 {
@@ -138,7 +133,7 @@ public:
     void reportError(std::string);
     void reportWarning(std::string);
     bool getErrorStatus();
-    token_type hashLook(std::string);
+    token_type tokenTypeLookup(std::string);
     bool isAlpha(char);
     bool isDigit(char);
     bool isAlnum(char);
