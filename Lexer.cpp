@@ -25,20 +25,20 @@ int Lexer::getLineCnt() { return lineCnt; }
 
 void Lexer::incLineCnt() { lineCnt++; }
 
-void Lexer::reportError(std::string error)
+void Lexer::reportError(const std::string &error)
 {
   errorStatus = true;
-  std::cout << "ERROR at line " << getLineCnt() << " " << error << std::endl;
+  std::cerr << "ERROR at line " << getLineCnt() << ": " << error << std::endl;
 }
 
-void Lexer::reportWarning(std::string warning) { std::cout << "WARNING at linel" << getLineCnt() << " " << warning; }
+void Lexer::reportWarning(const std::string &warning) { std::cout << "WARNING at linel" << getLineCnt() << " " << warning; }
 
 bool Lexer::getErrorStatus() { return errorStatus; }
 
-token_type Lexer::tokenTypeLookup(std::string lexeme)
+token_type Lexer::tokenTypeLookup(const std::string& lexeme)
 {
-  auto symbol = symbol_table.find(lexeme);
-  return (symbol == symbol_table.end()) ? IDENTIFIER : static_cast<token_type>(symbol->second);
+    auto symbol = symbol_table.find(lexeme);
+    return (symbol != symbol_table.end()) ? static_cast<token_type>(symbol->second) : IDENTIFIER;
 }
 
 bool Lexer::isAlpha(char c) { return (c == '_') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'); }

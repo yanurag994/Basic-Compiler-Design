@@ -55,6 +55,7 @@ struct token
 {
     token_type type;
     tokenMk tokenMark;
+    int tokenHash;
 };
 
 struct tokenVariable : token
@@ -65,7 +66,7 @@ struct tokenVariable : token
 
 struct tokenProcedure : token
 {
-    std::vector<tokenVariable> argType;
+    std::vector<token *> argType;
     tokenVariable retType;
 };
 
@@ -87,6 +88,7 @@ public:
             filePtr.open(filename);
             if (filePtr.fail())
             {
+                filePtr.close(); // Close the file
                 throw std::runtime_error("Failed to open file");
             }
             symbol_table["program"] = PROGRAM_RW;
@@ -120,6 +122,7 @@ public:
         catch (const std::exception &e)
         {
             std::cerr << "Error: " << e.what() << std::endl;
+            throw;
         }
     }
     ~Lexer()
@@ -130,10 +133,10 @@ public:
     void ungetChar();
     int getLineCnt();
     void incLineCnt();
-    void reportError(std::string);
-    void reportWarning(std::string);
+    void reportError(const std::string&);
+    void reportWarning(const std::string&);
     bool getErrorStatus();
-    token_type tokenTypeLookup(std::string);
+    token_type tokenTypeLookup(const std::string&);
     bool isAlpha(char);
     bool isDigit(char);
     bool isAlnum(char);
