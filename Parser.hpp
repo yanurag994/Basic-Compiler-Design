@@ -1,6 +1,7 @@
 #include "./Lexer.hpp"
 #include <vector>
 #include <sstream>
+#include <cstring>
 
 struct Scope
 {
@@ -10,23 +11,45 @@ struct Scope
         : symbol_table(symbol_table), previous(previous) {}
 };
 
-class Symbols
+class Symbols // Implements stack of Scopes
 {
 private:
     int Hashgen = 1000;
     Scope *current; // pointer to the first node in the list
 public:
     Symbols() : current(new Scope(std::map<std::string, token>(), nullptr)) {}
-    void enterScope();
-    void enterSoftScope();
-    void exitScope();
-    void HashLookup(token &search_for);
+    void enterScope() { current = new Scope(std::map<std::string, token>(), current); };
+    void enterSoftScope() { current = new Scope(current->symbol_table, current); };
+    void exitScope()
+    {
+        if (current->previous)
+        {
+            current = current->previous;
+        }
+        else
+        {
+            throw std::runtime_error("Hit the exitScope call at outermost scope");
+        }
+    };
+    void HashLookup(token &search_for)
+    {
+        auto foundToken = current->symbol_table.find(search_for.tokenMark.stringValue);
+        if (foundToken == current->symbol_table.end())
+        {
+            search_for.tokenHash = Hashgen++;
+        }
+        else
+        {
+            search_for.tokenHash = foundToken->second.tokenHash;
+        }
+        current->symbol_table[search_for.tokenMark.stringValue] = search_for;
+    }
 };
 
 class Parser
 {
 private:
-    Lexer lexer_handle; 
+    Lexer lexer_handle;
     token cur_tk;
     bool scan_assume(token_type, token *returned = nullptr);
     bool optional_scan_assume(token_type, token *returned = nullptr);
@@ -37,12 +60,11 @@ private:
     bool declaration();
     bool procedure_declaration();
     bool procedure_header();
-    bool parameter_list(std::vector<token*> *);
-    bool parameter(std::vector<token*> *);
+    bool parameter_list(std::vector<token> &argType);
+    bool parameter(token&);
     bool procedure_body();
-    bool variable_declaration(tokenVariable*);
-    bool type_mark(std::vector<token*> *returned = nullptr);
-    bool type_mark(token*returned = nullptr);
+    bool variable_declaration(token&);
+    bool type_mark(token_type &);
     bool statement();
     bool procedure_call();
     bool assignment_statement();
@@ -62,9 +84,9 @@ public:
     std::stringstream output;
     bool program();
     Symbols *symbols;
-    Parser(std::string filename) : lexer_handle(filename) 
-    { 
-    symbols = new Symbols();
-    cur_tk = lexer_handle.scan(); 
+    Parser(std::string filename) : lexer_handle(filename)
+    {
+        symbols = new Symbols();
+        cur_tk = lexer_handle.scan();
     }
 };

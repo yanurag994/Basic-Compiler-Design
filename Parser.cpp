@@ -3,42 +3,6 @@
 #include <string>
 #include <unistd.h>
 
-void Symbols::enterScope()
-{
-  current = new Scope(std::map<std::string, token>(), current);
-}
-
-void Symbols::enterSoftScope()
-{
-  current = new Scope(current->symbol_table, current);
-}
-
-void Symbols::exitScope()
-{
-  if (current->previous)
-  {
-    current = current->previous;
-  }
-  else
-  {
-    throw std::runtime_error("Hit the exitScope call at outermost scope");
-  }
-}
-
-void Symbols::HashLookup(token &search_for)
-{
-  auto foundToken = current->symbol_table.find(search_for.tokenMark.stringValue);
-  if (foundToken == current->symbol_table.end())
-  {
-    search_for.tokenHash = Hashgen++;
-    current->symbol_table[search_for.tokenMark.stringValue] = search_for;
-  }
-  else
-  {
-    search_for.tokenHash = foundToken->second.tokenHash;
-  }
-}
-
 bool Parser::scan_assume(token_type type, token *returned) // Complete
 {
   if (cur_tk.type == type)
@@ -142,7 +106,7 @@ bool Parser::declaration()
   optional_scan_assume(GLOBAL_RW);
   if (optional_scan_assume(PROCEDURE_RW) && procedure_declaration())
     return true;
-  tokenVariable *var = new tokenVariable();
+  token var;
   if (optional_scan_assume(VARIABLE_RW) && variable_declaration(var) && scan_assume((token_type)';'))
     return true;
   return false;
@@ -156,10 +120,10 @@ bool Parser::procedure_declaration() // Complete
 bool Parser::procedure_header() // Complete
 {
   symbols->enterScope();
-  tokenProcedure *proc = new tokenProcedure();
-  if (scan_assume(IDENTIFIER, proc) && scan_assume(TYPE_SEPERATOR) && type_mark(&(proc->retType)) && scan_assume((token_type)'(') && parameter_list(&(proc->argType)) && scan_assume((token_type)')'))
+  token proc;
+  if (scan_assume(IDENTIFIER, &proc) && scan_assume(TYPE_SEPERATOR) && type_mark(proc.dataType) && scan_assume((token_type)'(') && parameter_list(proc.argType) && scan_assume((token_type)')'))
   {
-    std::cout << proc->tokenMark.stringValue << " " << proc->retType.tokenMark.stringValue << " ";
+    std::cout << proc.tokenMark.stringValue << " " << proc.dataType << " ";
     // for (auto i : proc->argType)
     // std::cout << i.dataType.tokenMark.stringValue << " ";
     std::cout << std::endl;
@@ -169,16 +133,24 @@ bool Parser::procedure_header() // Complete
     return resync((token_type)')');
 }
 
-bool Parser::parameter_list(std::vector<token *> *args) // Complete
+bool Parser::parameter_list(std::vector<token> &argType) // Complete
 {
-  return optional_scan_assume(VARIABLE_RW) ? parameter(args) && (optional_scan_assume((token_type)',') ? parameter_list(args) : true) : true;
+  if(optional_scan_assume(VARIABLE_RW))
+  {
+    token arg;
+    auto valid=parameter(arg);
+    argType.push_back(arg);
+    if(optional_scan_assume((token_type)','))
+       return parameter_list(argType);
+    return true;
+  }
+  else
+    return true;
 }
 
-bool Parser::parameter(std::vector<token *> *args) // Complete
+bool Parser::parameter(token& param) // Complete
 {
-  tokenVariable *var;
-  auto temp = variable_declaration(var);
-  args->push_back(var);
+  auto temp = variable_declaration(param);
   return temp;
 }
 
@@ -198,9 +170,9 @@ bool Parser::procedure_body() // Complete
   return false;
 }
 
-bool Parser::variable_declaration(tokenVariable *var) // Complete
+bool Parser::variable_declaration(token &var) // Complete
 {
-  if (scan_assume(IDENTIFIER, var) && scan_assume(TYPE_SEPERATOR) && type_mark(var))
+  if (scan_assume(IDENTIFIER, &var) && scan_assume(TYPE_SEPERATOR) && type_mark(var.dataType))
   {
     if (optional_scan_assume((token_type)'['))
     {
@@ -215,23 +187,12 @@ bool Parser::variable_declaration(tokenVariable *var) // Complete
     return false;
 }
 
-/*bool Parser::type_mark(std::vector<tokenVariable> *returned) // Complete
+bool Parser::type_mark(token_type& dType) // Complete
 {
-  if (optional_scan_assume(INTEGER_RW, returned) || optional_scan_assume(FLOAT_RW, returned) || optional_scan_assume(STRING_RW, returned) || optional_scan_assume(BOOLEAN_RW, returned))
+  token returned;
+  if (optional_scan_assume(INTEGER_RW, &returned) || optional_scan_assume(FLOAT_RW, &returned) || optional_scan_assume(STRING_RW, &returned) || optional_scan_assume(BOOLEAN_RW, &returned))
   {
-    return true;
-  }
-  else
-  {
-    lexer_handle.reportError("Expected a type identifier");
-    return false;
-  }
-}*/
-
-bool Parser::type_mark(token *returned) // Complete
-{
-  if (optional_scan_assume(INTEGER_RW, returned) || optional_scan_assume(FLOAT_RW, returned) || optional_scan_assume(STRING_RW, returned) || optional_scan_assume(BOOLEAN_RW, returned))
-  {
+    dType=returned.type;
     return true;
   }
   else

@@ -51,23 +51,18 @@ struct tokenMk
     char stringValue[1024];
 };
 
-struct token
+struct basetoken
 {
     token_type type;
     tokenMk tokenMark;
     int tokenHash;
-};
-
-struct tokenVariable : token
-{
-    token_type dataType;
+    token_type dataType; // Holds datatype for variable and return type for procedure
     int size=-1;
 };
 
-struct tokenProcedure : token
+struct token : basetoken
 {
-    std::vector<token *> argType;
-    tokenVariable retType;
+    std::vector<token> argType; //Populate only if a procedure
 };
 
 class Lexer
