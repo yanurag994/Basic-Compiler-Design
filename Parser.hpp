@@ -31,18 +31,15 @@ public:
             throw std::runtime_error("Hit the exitScope call at outermost scope");
         }
     };
-    void HashLookup(token &search_for)
+    token HashLookup(token &search_for)
     {
         auto foundToken = current->symbol_table.find(search_for.tokenMark.stringValue);
         if (foundToken == current->symbol_table.end())
         {
             search_for.tokenHash = Hashgen++;
+            current->symbol_table[search_for.tokenMark.stringValue] = search_for;
         }
-        else
-        {
-            search_for.tokenHash = foundToken->second.tokenHash;
-        }
-        current->symbol_table[search_for.tokenMark.stringValue] = search_for;
+        return current->symbol_table.find(search_for.tokenMark.stringValue)->second;
     }
 };
 
@@ -51,8 +48,10 @@ class Parser
 private:
     Lexer lexer_handle;
     token cur_tk;
-    bool scan_assume(token_type, token *returned = nullptr);
-    bool optional_scan_assume(token_type, token *returned = nullptr);
+    bool scan_assume(token_type);
+    bool optional_scan_assume(token_type);
+    bool scan_assume(token_type, token &returned);
+    bool optional_scan_assume(token_type, token &returned);
     bool resync(token_type, bool);
     bool typeCheck(token *, token *, token_type);
     bool program_header();
@@ -61,9 +60,9 @@ private:
     bool procedure_declaration();
     bool procedure_header();
     bool parameter_list(std::vector<token> &argType);
-    bool parameter(token&);
+    bool parameter(token &);
     bool procedure_body();
-    bool variable_declaration(token&);
+    bool variable_declaration(token &);
     bool type_mark(token_type &);
     bool statement();
     bool procedure_call();
