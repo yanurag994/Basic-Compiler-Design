@@ -51,7 +51,7 @@ struct tokenMk
     double doubleValue;
     char stringValue[1024];
     tokenMk() : intValue(), doubleValue(), stringValue() {}
-    tokenMk(const char* stringValue) : intValue(), doubleValue()
+    tokenMk(const char *stringValue) : intValue(), doubleValue()
     {
         std::strncpy(this->stringValue, stringValue, sizeof(this->stringValue) - 1);
     }
@@ -67,8 +67,8 @@ struct basetoken
     token_type dataType; // Holds datatype for variable and return type for procedure
     int size = -1;
     basetoken() : tokenHash() {}
-     basetoken(token_type type, const tokenMk &tokenMark, int tokenHash, token_type dataType, int size = -1)
-        : type(type), tokenMark(tokenMark), tokenHash(tokenHash), dataType(dataType), size(size) {} 
+    basetoken(token_type type, const tokenMk &tokenMark, int tokenHash, token_type dataType, int size = -1)
+        : type(type), tokenMark(tokenMark), tokenHash(tokenHash), dataType(dataType), size(size) {}
 };
 
 struct token : basetoken
@@ -76,7 +76,7 @@ struct token : basetoken
     std::vector<token> argType; // Populate only if a procedure
     token() : argType() {}
     token(token_type type, const tokenMk &tokenMark, int tokenHash, token_type dataType, int size = -1, const std::vector<token> &argType = {})
-        : basetoken(type, tokenMark, tokenHash, dataType, size), argType(argType) {} 
+        : basetoken(type, tokenMark, tokenHash, dataType, size), argType(argType) {}
 };
 
 class Lexer

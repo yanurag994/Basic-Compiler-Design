@@ -46,9 +46,9 @@ public:
         global->symbol_table["putstring"] = newTokenPutString;
 
         token newTokenSqrt(IDENTIFIER, tokenMk("sqrt"), 1008, FLOAT_RW, -1, {token(IDENTIFIER, tokenMk("internal_sqrt"), 1054, INTEGER_RW)});
-        global->symbol_table["sqrt"] = newTokenSqrt; 
+        global->symbol_table["sqrt"] = newTokenSqrt;
     }
-    void enterScope() { current = new Scope(current->symbol_table, current); };
+    void enterScope() { current = new Scope(std::map<std::string, token>(), current); };
     void enterSoftScope() { current = new Scope(current->symbol_table, current); };
     void exitScope()
     {
@@ -57,24 +57,51 @@ public:
         else
             throw std::runtime_error("Hit the exitScope call at outermost scope");
     };
-    token HashLookup(token &search_for)
+    token HashLookup(token &search_for, bool &global_def)
     {
-        auto foundToken = current->symbol_table.find(search_for.tokenMark.stringValue);
-        if (foundToken == current->symbol_table.end())
+        auto foundToken = global->symbol_table.find(search_for.tokenMark.stringValue);
+        if (foundToken == global->symbol_table.end())
         {
-            search_for.tokenHash = Hashgen++;
-            current->symbol_table[search_for.tokenMark.stringValue] = search_for;
+            if (global_def == true)
+            {
+                global_def = false;
+                search_for.tokenHash = Hashgen++;
+                global->symbol_table[search_for.tokenMark.stringValue] = search_for;
+                return global->symbol_table.find(search_for.tokenMark.stringValue)->second;
+            }
+            auto foundToken = current->symbol_table.find(search_for.tokenMark.stringValue);
+            if (foundToken == current->symbol_table.end())
+            {
+                search_for.tokenHash = Hashgen++;
+                current->symbol_table[search_for.tokenMark.stringValue] = search_for;
+            }
+            return current->symbol_table.find(search_for.tokenMark.stringValue)->second;
         }
-        return current->symbol_table.find(search_for.tokenMark.stringValue)->second;
+        else
+        {
+            return global->symbol_table.find(search_for.tokenMark.stringValue)->second;
+        }
     };
     void Completetoken(token &search_for)
     {
+        auto glbfoundToken = global->symbol_table.find(search_for.tokenMark.stringValue);
+        if (glbfoundToken != global->symbol_table.end())
+        {
+            glbfoundToken->second = search_for;
+            return;
+        }
         auto foundToken = current->symbol_table.find(search_for.tokenMark.stringValue);
         foundToken->second = search_for;
         return;
     };
     void CompleteDeclPrevtoken(token &search_for)
     {
+        auto glbfoundToken = global->symbol_table.find(search_for.tokenMark.stringValue);
+        if (glbfoundToken != global->symbol_table.end())
+        {
+            glbfoundToken->second = search_for;
+            return;
+        }
         auto foundToken = current->previous->symbol_table.find(search_for.tokenMark.stringValue);
         foundToken->second = search_for;
         return;
@@ -86,6 +113,7 @@ class Parser
 private:
     Lexer lexer_handle;
     token cur_tk;
+    bool global_flag = false;
     bool scan_assume(token_type);
     bool optional_scan_assume(token_type);
     bool scan_assume(token_type, token &returned);

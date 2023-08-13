@@ -9,7 +9,7 @@ bool Parser::scan_assume(token_type type, token &returned)
   {
     if (cur_tk.type == IDENTIFIER)
     {
-      returned = symbols->HashLookup(cur_tk);
+      returned = symbols->HashLookup(cur_tk, global_flag);
     }
     if (cur_tk.type == INTEGER_VAL)
       std::cout << "Parsed token " << cur_tk.tokenMark.intValue << std::endl;
@@ -38,7 +38,7 @@ bool Parser::optional_scan_assume(token_type type, token &returned)
   {
     if (cur_tk.type == IDENTIFIER)
     {
-      returned = symbols->HashLookup(cur_tk);
+      returned = symbols->HashLookup(cur_tk, global_flag);
     }
     if (cur_tk.type == 275)
       std::cout << "Parsed token " << cur_tk.tokenMark.intValue << std::endl;
@@ -143,7 +143,7 @@ bool Parser::program_body() // Complete
 
 bool Parser::declaration()
 {
-  optional_scan_assume(GLOBAL_RW);
+  global_flag = optional_scan_assume(GLOBAL_RW);
   if (optional_scan_assume(PROCEDURE_RW) && procedure_declaration())
     return true;
   token var;

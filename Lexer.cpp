@@ -35,10 +35,10 @@ void Lexer::reportWarning(const std::string &warning) { std::cout << "WARNING at
 
 bool Lexer::getErrorStatus() { return errorStatus; }
 
-token_type Lexer::tokenTypeLookup(const std::string& lexeme)
+token_type Lexer::tokenTypeLookup(const std::string &lexeme)
 {
-    auto symbol = symbol_table.find(lexeme);
-    return (symbol != symbol_table.end()) ? static_cast<token_type>(symbol->second) : IDENTIFIER;
+  auto symbol = symbol_table.find(lexeme);
+  return (symbol != symbol_table.end()) ? static_cast<token_type>(symbol->second) : IDENTIFIER;
 }
 
 bool Lexer::isAlpha(char c) { return (c == '_') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'); }
