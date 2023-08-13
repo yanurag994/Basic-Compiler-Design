@@ -2,6 +2,7 @@
 #include <vector>
 #include <sstream>
 #include <cstring>
+#include <iostream>
 
 struct Scope
 {
@@ -59,27 +60,25 @@ public:
     };
     token HashLookup(token &search_for, bool &global_def)
     {
-        auto foundToken = global->symbol_table.find(search_for.tokenMark.stringValue);
-        if (foundToken == global->symbol_table.end())
+        auto foundToken = current->symbol_table.find(search_for.tokenMark.stringValue);
+        if (foundToken == current->symbol_table.end())
         {
-            if (global_def == true)
+            auto glbfoundToken = global->symbol_table.find(search_for.tokenMark.stringValue);
+            if (glbfoundToken == global->symbol_table.end() && global_def == true || global == current)
             {
                 global_def = false;
+                search_for.global_var=true;
                 search_for.tokenHash = Hashgen++;
                 global->symbol_table[search_for.tokenMark.stringValue] = search_for;
                 return global->symbol_table.find(search_for.tokenMark.stringValue)->second;
             }
-            auto foundToken = current->symbol_table.find(search_for.tokenMark.stringValue);
-            if (foundToken == current->symbol_table.end())
-            {
-                search_for.tokenHash = Hashgen++;
-                current->symbol_table[search_for.tokenMark.stringValue] = search_for;
-            }
+            search_for.tokenHash = Hashgen++;
+            current->symbol_table[search_for.tokenMark.stringValue] = search_for;
             return current->symbol_table.find(search_for.tokenMark.stringValue)->second;
         }
         else
         {
-            return global->symbol_table.find(search_for.tokenMark.stringValue)->second;
+            return current->symbol_table.find(search_for.tokenMark.stringValue)->second;
         }
     };
     void Completetoken(token &search_for)
@@ -91,7 +90,15 @@ public:
             return;
         }
         auto foundToken = current->symbol_table.find(search_for.tokenMark.stringValue);
-        foundToken->second = search_for;
+        if (foundToken != current->symbol_table.end())
+        {
+            foundToken->second = search_for;
+            return;
+        }
+        else
+        {
+            current->symbol_table[search_for.tokenMark.stringValue] = search_for;
+        }
         return;
     };
     void CompleteDeclPrevtoken(token &search_for)
@@ -113,13 +120,14 @@ class Parser
 private:
     Lexer lexer_handle;
     token cur_tk;
+    token prev_tk;
     bool global_flag = false;
     bool scan_assume(token_type);
     bool optional_scan_assume(token_type);
     bool scan_assume(token_type, token &returned);
     bool optional_scan_assume(token_type, token &returned);
     bool resync(token_type, bool);
-    bool typeCheck(token *, token *, token_type);
+    bool typeCheck(token& , token& , token_type);
     bool program_header();
     bool program_body();
     bool declaration();
@@ -146,12 +154,27 @@ private:
     bool argument_list();
 
 public:
+    std::vector<std::stringstream> buffer;
     std::stringstream output;
     bool program();
     Symbols *symbols;
     Parser(std::string filename) : lexer_handle(filename)
     {
+        auto globalstream = std::stringstream();
+        buffer.push_back(std::move(globalstream));
         symbols = new Symbols();
         cur_tk = lexer_handle.scan();
     }
 };
+
+inline std::string getLLVMType(token_type dataType) {
+    if (dataType == INTEGER_RW)
+        return "i32";
+    if (dataType == FLOAT_RW)
+        return "float";
+    if (dataType == STRING_RW)
+        return "i32";
+    if (dataType == BOOLEAN_RW)
+        return "i8";
+    return "unknown";
+}

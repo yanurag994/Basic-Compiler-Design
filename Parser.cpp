@@ -20,7 +20,10 @@ bool Parser::scan_assume(token_type type, token &returned)
     else if (cur_tk.type < 255) // Single Chars
       std::cout << "Parsed token " << (char)cur_tk.type << std::endl;
     if (type != (token_type)'.')
+    {
+      prev_tk = cur_tk;
       cur_tk = lexer_handle.scan();
+    }
     return true;
   }
   else
@@ -49,7 +52,10 @@ bool Parser::optional_scan_assume(token_type type, token &returned)
     else if (cur_tk.type < 255)
       std::cout << "Parsed token " << (char)cur_tk.type << std::endl;
     if (type != (token_type)'.')
+    {
+      prev_tk = cur_tk;
       cur_tk = lexer_handle.scan();
+    }
     return true;
   }
   return false;
@@ -68,7 +74,10 @@ bool Parser::scan_assume(token_type type)
     else if (cur_tk.type < 255) // Single Chars
       std::cout << "Parsed token " << (char)cur_tk.type << std::endl;
     if (type != (token_type)'.')
+    {
+      prev_tk = cur_tk;
       cur_tk = lexer_handle.scan();
+    }
     return true;
   }
   else
@@ -93,7 +102,10 @@ bool Parser::optional_scan_assume(token_type type)
     else if (cur_tk.type < 255)
       std::cout << "Parsed token " << (char)cur_tk.type << std::endl;
     if (type != (token_type)'.')
+    {
+      prev_tk = cur_tk;
       cur_tk = lexer_handle.scan();
+    }
     return true;
   }
   return false;
@@ -113,9 +125,13 @@ bool Parser::resync(token_type type, bool ahead = false)
   return false;
 }
 
-bool Parser::typeCheck(token *first, token *second, token_type op)
+bool Parser::typeCheck(token &first, token &second, token_type op)
 {
-  return true;
+  if ((op == (token_type)'+' || op == (token_type)'-') && (first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
+    return true; // Integer result
+  if ((op == (token_type)'+' || op == (token_type)'-') && (first.dataType == FLOAT_VAL || first.dataType == FLOAT_RW || first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == FLOAT_VAL || second.dataType == FLOAT_RW || second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
+    return true; // Float result
+  return false;
 }
 
 bool Parser::program() // Complete
@@ -134,9 +150,17 @@ bool Parser::program_body() // Complete
     ;
   if (scan_assume(BEGIN_RW))
   {
+    output << "define i32 @main() {" << std::endl;
     while (statement() && scan_assume((token_type)';'))
       ;
-    return scan_assume(END_RW) && scan_assume(PROGRAM_RW);
+    if (scan_assume(END_RW) && scan_assume(PROGRAM_RW))
+    {
+      output << "ret i32 0" << std::endl
+             << "}" << std::endl;
+      return true;
+    }
+    else
+      return false;
   }
   return resync(PROGRAM_RW);
 }
@@ -149,6 +173,13 @@ bool Parser::declaration()
   token var;
   if (optional_scan_assume(VARIABLE_RW) && variable_declaration(var) && scan_assume((token_type)';'))
   {
+    output << "@" << var.tokenMark.stringValue << " = ";
+    if (var.global_var)
+      output << "global ";
+    if (var.size != -1)
+      output << "[" << var.size << " x " << getLLVMType(var.dataType) << "] zeroinitializer" << std::endl;
+    else
+      output << getLLVMType(var.dataType) << " zeroinitializer" << std::endl;
     symbols->Completetoken(var);
     return true;
   }
@@ -166,13 +197,21 @@ bool Parser::procedure_header()
   if (scan_assume(IDENTIFIER, proc) && scan_assume(TYPE_SEPERATOR) && type_mark(proc.dataType))
   {
     symbols->enterScope();
+    std::stringstream temp;
+    buffer.push_back(std::move(temp));
+    output.swap(buffer[buffer.size() - 2]);
+    output << "define " << getLLVMType(proc.dataType) << " @" << proc.tokenMark.stringValue << "(";
     if (scan_assume((token_type)'(') && parameter_list(proc.argType) && scan_assume((token_type)')'))
     {
-      symbols->CompleteDeclPrevtoken(proc);
-      std::cout << "In proc decl tokenHash is " << proc.tokenHash << " for " << proc.tokenMark.stringValue << " with dataType" << proc.dataType;
-      for (auto i : proc.argType)
-        std::cout << " arg " << i.tokenMark.stringValue << " with Hash " << i.tokenHash << " is of dtype " << i.dataType;
-      std::cout << std::endl;
+      symbols->CompleteDeclPrevtoken(proc); // For outer Scope
+      symbols->Completetoken(proc);         // To allow recursion
+      for (auto i = proc.argType.begin(); i != proc.argType.end(); ++i)
+      {
+        output << getLLVMType(i->dataType) << " %" << i->tokenMark.stringValue;
+        if (i != std::prev(proc.argType.end()))
+          output << ",";
+      }
+      output << ")" << std::endl;
       return true;
     }
     return false;
@@ -205,6 +244,8 @@ bool Parser::parameter(token &param)
 
 bool Parser::procedure_body()
 {
+  output << "{" << std::endl
+         << "begin:" << std::endl;
   while (declaration())
     ;
   if (scan_assume(BEGIN_RW))
@@ -213,6 +254,11 @@ bool Parser::procedure_body()
   if (scan_assume(END_RW) && scan_assume(PROCEDURE_RW) && scan_assume((token_type)';'))
   {
     symbols->exitScope();
+    output << "}" << std::endl;
+    buffer[0] << output.str();
+    buffer.pop_back();
+    output.str("");
+    output.swap(buffer[buffer.size() - 1]);
     return true;
   }
   lexer_handle.reportWarning("Resync not possible at this stage");
@@ -223,14 +269,11 @@ bool Parser::variable_declaration(token &var)
 {
   if (scan_assume(IDENTIFIER, var) && scan_assume(TYPE_SEPERATOR) && type_mark(var.dataType))
   {
-    std::cout << "In var decl tokenHash is " << var.tokenHash << " for " << var.tokenMark.stringValue << " with dataType" << var.dataType << std::endl;
-    if (optional_scan_assume((token_type)'['))
+    if (optional_scan_assume((token_type)'[') && scan_assume(INTEGER_VAL))
     {
-      auto exp = expression();
-      // std::cout << var->tokenMark.stringValue << " " << var->dataType<< " len " << var->size<<std::endl;
-      return (exp && scan_assume((token_type)']')) ? true : resync((token_type)']');
+      var.size = prev_tk.tokenMark.intValue;
+      return (scan_assume((token_type)']')) ? true : resync((token_type)']');
     }
-    // std::cout << var->tokenMark.stringValue << " " << var->dataType<<std::endl;
     return true;
   }
   else
