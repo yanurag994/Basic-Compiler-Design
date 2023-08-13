@@ -148,7 +148,10 @@ bool Parser::declaration()
     return true;
   token var;
   if (optional_scan_assume(VARIABLE_RW) && variable_declaration(var) && scan_assume((token_type)';'))
+  {
+    symbols->Completetoken(var);
     return true;
+  }
   return false;
 }
 
@@ -159,15 +162,20 @@ bool Parser::procedure_declaration() // Complete
 
 bool Parser::procedure_header()
 {
-  symbols->enterScope();
   token proc;
-  if (scan_assume(IDENTIFIER, proc) && scan_assume(TYPE_SEPERATOR) && type_mark(proc.dataType) && scan_assume((token_type)'(') && parameter_list(proc.argType) && scan_assume((token_type)')'))
+  if (scan_assume(IDENTIFIER, proc) && scan_assume(TYPE_SEPERATOR) && type_mark(proc.dataType))
   {
-    std::cout << "In proc decl tokenHash is " << proc.tokenHash << " for " << proc.tokenMark.stringValue << " with dataType" << proc.dataType;
-    for (auto i : proc.argType)
-      std::cout << " arg " << i.tokenMark.stringValue << " with Hash " << i.tokenHash << " is of dtype " << i.dataType;
-    std::cout << std::endl;
-    return true;
+    symbols->enterScope();
+    if (scan_assume((token_type)'(') && parameter_list(proc.argType) && scan_assume((token_type)')'))
+    {
+      symbols->CompleteDeclPrevtoken(proc);
+      std::cout << "In proc decl tokenHash is " << proc.tokenHash << " for " << proc.tokenMark.stringValue << " with dataType" << proc.dataType;
+      for (auto i : proc.argType)
+        std::cout << " arg " << i.tokenMark.stringValue << " with Hash " << i.tokenHash << " is of dtype " << i.dataType;
+      std::cout << std::endl;
+      return true;
+    }
+    return false;
   }
   else
     return resync((token_type)')');
@@ -179,6 +187,7 @@ bool Parser::parameter_list(std::vector<token> &argType)
   {
     token arg;
     auto valid = parameter(arg);
+    symbols->Completetoken(arg);
     argType.push_back(arg);
     if (optional_scan_assume((token_type)','))
       return parameter_list(argType);

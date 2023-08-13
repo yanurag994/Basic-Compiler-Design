@@ -15,21 +15,20 @@ class Symbols // Implements stack of Scopes
 {
 private:
     int Hashgen = 1000;
+    Scope *global;
     Scope *current; // pointer to the first node in the list
 public:
-    Symbols() : current(new Scope(std::map<std::string, token>(), nullptr)) {}
+    Symbols() : global(new Scope(std::map<std::string, token>(), nullptr)) {
+
+    }
     void enterScope() { current = new Scope(std::map<std::string, token>(), current); };
     void enterSoftScope() { current = new Scope(current->symbol_table, current); };
     void exitScope()
     {
         if (current->previous)
-        {
             current = current->previous;
-        }
         else
-        {
             throw std::runtime_error("Hit the exitScope call at outermost scope");
-        }
     };
     token HashLookup(token &search_for)
     {
@@ -40,7 +39,19 @@ public:
             current->symbol_table[search_for.tokenMark.stringValue] = search_for;
         }
         return current->symbol_table.find(search_for.tokenMark.stringValue)->second;
-    }
+    };
+    void Completetoken(token &search_for)
+    {
+        auto foundToken = current->symbol_table.find(search_for.tokenMark.stringValue);
+        foundToken->second = search_for;
+        return;
+    };
+    void CompleteDeclPrevtoken(token &search_for)
+    {
+        auto foundToken = current->previous->symbol_table.find(search_for.tokenMark.stringValue);
+        foundToken->second = search_for;
+        return;
+    };
 };
 
 class Parser
