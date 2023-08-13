@@ -5,6 +5,7 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <cstring>
 
 enum token_type
 {
@@ -49,6 +50,13 @@ struct tokenMk
     int intValue;
     double doubleValue;
     char stringValue[1024];
+    tokenMk() : intValue(), doubleValue(), stringValue() {}
+    tokenMk(const char* stringValue) : intValue(), doubleValue()
+    {
+        std::strncpy(this->stringValue, stringValue, sizeof(this->stringValue) - 1);
+    }
+    tokenMk(int intValue) : intValue(intValue) {}
+    tokenMk(double doubleValue) : doubleValue(doubleValue) {}
 };
 
 struct basetoken
@@ -57,12 +65,18 @@ struct basetoken
     tokenMk tokenMark;
     int tokenHash;
     token_type dataType; // Holds datatype for variable and return type for procedure
-    int size=-1;
+    int size = -1;
+    basetoken() : tokenHash() {}
+     basetoken(token_type type, const tokenMk &tokenMark, int tokenHash, token_type dataType, int size = -1)
+        : type(type), tokenMark(tokenMark), tokenHash(tokenHash), dataType(dataType), size(size) {} 
 };
 
 struct token : basetoken
 {
-    std::vector<token> argType; //Populate only if a procedure
+    std::vector<token> argType; // Populate only if a procedure
+    token() : argType() {}
+    token(token_type type, const tokenMk &tokenMark, int tokenHash, token_type dataType, int size = -1, const std::vector<token> &argType = {})
+        : basetoken(type, tokenMark, tokenHash, dataType, size), argType(argType) {} 
 };
 
 class Lexer
@@ -128,10 +142,10 @@ public:
     void ungetChar();
     int getLineCnt();
     void incLineCnt();
-    void reportError(const std::string&);
-    void reportWarning(const std::string&);
+    void reportError(const std::string &);
+    void reportWarning(const std::string &);
     bool getErrorStatus();
-    token_type tokenTypeLookup(const std::string&);
+    token_type tokenTypeLookup(const std::string &);
     bool isAlpha(char);
     bool isDigit(char);
     bool isAlnum(char);

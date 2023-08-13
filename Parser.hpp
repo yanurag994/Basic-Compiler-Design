@@ -14,14 +14,41 @@ struct Scope
 class Symbols // Implements stack of Scopes
 {
 private:
-    int Hashgen = 1000;
+    int Hashgen = 1100;
     Scope *global;
     Scope *current; // pointer to the first node in the list
 public:
-    Symbols() : global(new Scope(std::map<std::string, token>(), nullptr)) {
+    Symbols() : current(new Scope(std::map<std::string, token>(), nullptr))
+    {
+        global = current;
+        token newTokenGetBool(IDENTIFIER, tokenMk("getbool"), 1000, BOOLEAN_RW);
+        global->symbol_table["getbool"] = newTokenGetBool;
 
+        token newTokenGetInteger(IDENTIFIER, tokenMk("getinteger"), 1001, INTEGER_RW);
+        global->symbol_table["getinteger"] = newTokenGetInteger;
+
+        token newTokenGetFloat(IDENTIFIER, tokenMk("getfloat"), 1002, FLOAT_RW);
+        global->symbol_table["getfloat"] = newTokenGetFloat;
+
+        token newTokenGetString(IDENTIFIER, tokenMk("getstring"), 1003, STRING_RW);
+        global->symbol_table["getstring"] = newTokenGetString;
+
+        token newTokenPutBool(IDENTIFIER, tokenMk("putbool"), 1004, BOOLEAN_RW, -1, {token(IDENTIFIER, tokenMk("internal_bool"), 1050, BOOLEAN_RW)});
+        global->symbol_table["putbool"] = newTokenPutBool;
+
+        token newTokenPutInteger(IDENTIFIER, tokenMk("putinteger"), 1005, BOOLEAN_RW, -1, {token(IDENTIFIER, tokenMk("internal_int"), 1051, INTEGER_RW)});
+        global->symbol_table["putinteger"] = newTokenPutInteger;
+
+        token newTokenPutFloat(IDENTIFIER, tokenMk("putfloat"), 1006, BOOLEAN_RW, -1, {token(IDENTIFIER, tokenMk("internal_float"), 1052, FLOAT_RW)});
+        global->symbol_table["putfloat"] = newTokenPutFloat;
+
+        token newTokenPutString(IDENTIFIER, tokenMk("putstring"), 1007, BOOLEAN_RW, -1, {token(IDENTIFIER, tokenMk("internal_double"), 1053, STRING_RW)});
+        global->symbol_table["putstring"] = newTokenPutString;
+
+        token newTokenSqrt(IDENTIFIER, tokenMk("sqrt"), 1008, FLOAT_RW, -1, {token(IDENTIFIER, tokenMk("internal_sqrt"), 1054, INTEGER_RW)});
+        global->symbol_table["sqrt"] = newTokenSqrt; 
     }
-    void enterScope() { current = new Scope(std::map<std::string, token>(), current); };
+    void enterScope() { current = new Scope(current->symbol_table, current); };
     void enterSoftScope() { current = new Scope(current->symbol_table, current); };
     void exitScope()
     {
