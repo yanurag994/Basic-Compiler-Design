@@ -8,9 +8,9 @@ bool Parser::scan_assume(token_type type, token &returned)
   if (cur_tk.type == type)
   {
     if (cur_tk.type == IDENTIFIER)
-    {
       returned = symbols->HashLookup(cur_tk, global_flag);
-    }
+    if (cur_tk.type == INTEGER_VAL || cur_tk.type == FLOAT_VAL)
+      returned = cur_tk;
     if (cur_tk.type == INTEGER_VAL)
       std::cout << "Parsed token " << cur_tk.tokenMark.intValue << std::endl;
     else if (cur_tk.type == FLOAT_VAL)
@@ -40,9 +40,9 @@ bool Parser::optional_scan_assume(token_type type, token &returned)
   if (cur_tk.type == type)
   {
     if (cur_tk.type == IDENTIFIER)
-    {
       returned = symbols->HashLookup(cur_tk, global_flag);
-    }
+    if (cur_tk.type == INTEGER_VAL || cur_tk.type == FLOAT_VAL)
+      returned = cur_tk;
     if (cur_tk.type == 275)
       std::cout << "Parsed token " << cur_tk.tokenMark.intValue << std::endl;
     else if (cur_tk.type == 276)
@@ -126,6 +126,15 @@ bool Parser::resync(token_type type, bool ahead = false)
 }
 
 bool Parser::typeCheck(token &first, token &second, token_type op)
+{
+  if ((op == (token_type)'+' || op == (token_type)'-') && (first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
+    return true; // Integer result
+  if ((op == (token_type)'+' || op == (token_type)'-') && (first.dataType == FLOAT_VAL || first.dataType == FLOAT_RW || first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == FLOAT_VAL || second.dataType == FLOAT_RW || second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
+    return true; // Float result
+  return false;
+}
+
+bool Parser::typeCheck(token &first, token &second, token &result, token_type op)
 {
   if ((op == (token_type)'+' || op == (token_type)'-') && (first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
     return true; // Integer result
@@ -269,9 +278,10 @@ bool Parser::variable_declaration(token &var)
 {
   if (scan_assume(IDENTIFIER, var) && scan_assume(TYPE_SEPERATOR) && type_mark(var.dataType))
   {
-    if (optional_scan_assume((token_type)'[') && scan_assume(INTEGER_VAL))
+    token temp;
+    if (optional_scan_assume((token_type)'[') && scan_assume(INTEGER_VAL,temp))
     {
-      var.size = prev_tk.tokenMark.intValue;
+      var.size = temp.tokenMark.intValue;
       return (scan_assume((token_type)']')) ? true : resync((token_type)']');
     }
     return true;
@@ -297,13 +307,13 @@ bool Parser::type_mark(token_type &dType)
 
 bool Parser::statement()
 {
-  token var;
   if (optional_scan_assume(IF_RW) && if_statement())
     return true;
   if (optional_scan_assume(FOR_RW) && loop_statement())
     return true;
   if (optional_scan_assume(RETURN_RW) && return_statement())
     return true;
+  token var;
   if (optional_scan_assume(IDENTIFIER, var))
   {
     std::cout << "In statement tokenHash is " << var.tokenHash << " for " << var.tokenMark.stringValue << " with dataType" << var.dataType << std::endl;
@@ -311,7 +321,7 @@ bool Parser::statement()
       return true;
     if (optional_scan_assume((token_type)'[') && scan_assume(INTEGER_VAL) && scan_assume((token_type)']') && scan_assume(EQUAL_ASSIGN) && assignment_statement())
       return true;
-    if (optional_scan_assume((token_type)'(') && procedure_call())
+    if (optional_scan_assume((token_type)'(') && procedure_call(var))
       return true;
   }
   return false;
@@ -381,7 +391,7 @@ bool Parser::factor()
     {
       return true;
     }
-    else if (optional_scan_assume(IDENTIFIER, var) && destination())
+    else if (optional_scan_assume(IDENTIFIER, var) && destination(var))
     {
       std::cout << "In if condition tokenHash is " << var.tokenHash << " for " << var.tokenMark.stringValue << " with dataType" << var.dataType << std::endl;
       return true;
@@ -392,12 +402,12 @@ bool Parser::factor()
   }
 }
 
-bool Parser::argument_list()
+bool Parser::argument_list(token& var)
 {
-  return expression() ? (optional_scan_assume((token_type)',') ? argument_list() : true) : true;
+  return expression() ? (optional_scan_assume((token_type)',') ? argument_list(var) : true) : true;
 }
 
-bool Parser::destination()
+bool Parser::destination(token & var)
 {
   if (optional_scan_assume((token_type)'['))
   {
@@ -407,7 +417,7 @@ bool Parser::destination()
       return true;
   }
   if (optional_scan_assume((token_type)'('))
-    procedure_call();
+    procedure_call(var);
   return true;
 }
 
@@ -438,7 +448,7 @@ bool Parser::return_statement()
   return expression();
 }
 
-bool Parser::procedure_call()
+bool Parser::procedure_call(token& var)
 {
-  return (optional_scan_assume((token_type)')') || (argument_list() && scan_assume((token_type)')')));
+  return (optional_scan_assume((token_type)')') || (argument_list(var) && scan_assume((token_type)')')));
 }

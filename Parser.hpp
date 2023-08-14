@@ -128,6 +128,7 @@ private:
     bool optional_scan_assume(token_type, token &returned);
     bool resync(token_type, bool);
     bool typeCheck(token& , token& , token_type);
+    bool typeCheck(token& , token& , token& , token_type);
     bool program_header();
     bool program_body();
     bool declaration();
@@ -139,9 +140,9 @@ private:
     bool variable_declaration(token &);
     bool type_mark(token_type &);
     bool statement();
-    bool procedure_call();
+    bool procedure_call(token &);
     bool assignment_statement();
-    bool destination();
+    bool destination(token &);
     bool if_statement();
     bool loop_statement();
     bool return_statement();
@@ -151,7 +152,7 @@ private:
     bool relation();
     bool term();
     bool factor();
-    bool argument_list();
+    bool argument_list(token &);
 
 public:
     std::vector<std::stringstream> buffer;
