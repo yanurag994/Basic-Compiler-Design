@@ -15,10 +15,10 @@ struct Scope
 class Symbols // Implements stack of Scopes
 {
 private:
-    int Hashgen = 1100;
     Scope *global;
     Scope *current; // pointer to the first node in the list
 public:
+    int Hashgen = 1100;
     Symbols() : current(new Scope(std::map<std::string, token>(), nullptr))
     {
         global = current;
@@ -124,8 +124,8 @@ private:
     bool global_flag = false;
     bool scan_assume(token_type);
     bool optional_scan_assume(token_type);
-    bool scan_assume(token_type, token &returned);
-    bool optional_scan_assume(token_type, token &returned);
+    bool scan_assume(token_type, token &);
+    bool optional_scan_assume(token_type, token &);
     bool resync(token_type, bool);
     bool typeCheck(token& , token& , token_type);
     bool typeCheck(token& , token& , token& , token_type);
@@ -134,7 +134,7 @@ private:
     bool declaration();
     bool procedure_declaration();
     bool procedure_header();
-    bool parameter_list(std::vector<token> &argType);
+    bool parameter_list(std::vector<token> &);
     bool parameter(token &);
     bool procedure_body();
     bool variable_declaration(token &);
@@ -147,7 +147,7 @@ private:
     bool loop_statement();
     bool return_statement();
     bool expression();
-    bool cond_expression();
+    bool cond_expression(std::string&);
     bool arithOp();
     bool relation();
     bool term();
@@ -159,6 +159,7 @@ public:
     std::stringstream output;
     bool program();
     Symbols *symbols;
+    int label_gen=10;
     Parser(std::string filename) : lexer_handle(filename)
     {
         auto globalstream = std::stringstream();
@@ -168,7 +169,7 @@ public:
     }
 };
 
-inline std::string getLLVMType(token_type dataType) {
+inline std::string getLLVMType(token_type dataType=UNKNOWN) {
     if (dataType == INTEGER_RW)
         return "i32";
     if (dataType == FLOAT_RW)
@@ -177,5 +178,17 @@ inline std::string getLLVMType(token_type dataType) {
         return "i32";
     if (dataType == BOOLEAN_RW)
         return "i8";
+    return "unknown";
+}
+
+inline std::string getLLVMIntitializer(token_type dataType=UNKNOWN) {
+    if (dataType == INTEGER_RW)
+        return "0";
+    if (dataType == FLOAT_RW)
+        return "0.000000e+00";
+    if (dataType == STRING_RW)
+        return "i32";
+    if (dataType == BOOLEAN_RW)
+        return "0";
     return "unknown";
 }

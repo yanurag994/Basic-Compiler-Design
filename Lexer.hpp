@@ -42,7 +42,7 @@ enum token_type
     VARIABLE_RW,
     TRUE_RW,
     FALSE_RW,
-    T_EOF
+    T_EOF,
 };
 
 struct tokenMk
