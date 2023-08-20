@@ -3,12 +3,12 @@
 #include <string>
 #include <unistd.h>
 
-bool Parser::scan_assume(token_type type, token &returned)
+bool Parser::scan_assume(token_type type, token &returned, bool definition = false)
 {
   if (cur_tk.type == type)
   {
     if (cur_tk.type == IDENTIFIER)
-      returned = symbols->HashLookup(cur_tk, global_flag);
+      returned = symbols->HashLookup(cur_tk, global_flag, definition);
     if (cur_tk.type == INTEGER_VAL || cur_tk.type == FLOAT_VAL)
       returned = cur_tk;
     if (type != (token_type)'.')
@@ -27,12 +27,12 @@ bool Parser::scan_assume(token_type type, token &returned)
   }
 }
 
-bool Parser::optional_scan_assume(token_type type, token &returned)
+bool Parser::optional_scan_assume(token_type type, token &returned, bool definition = false)
 {
   if (cur_tk.type == type)
   {
     if (cur_tk.type == IDENTIFIER)
-      returned = symbols->HashLookup(cur_tk, global_flag);
+      returned = symbols->HashLookup(cur_tk, global_flag, definition);
     if (cur_tk.type == INTEGER_VAL || cur_tk.type == FLOAT_VAL)
       returned = cur_tk;
     if (type != (token_type)'.')
@@ -145,43 +145,42 @@ bool Parser::program_body() // Complete
 bool Parser::declaration()
 {
   global_flag = optional_scan_assume(GLOBAL_RW);
-  if (optional_scan_assume(PROCEDURE_RW) && procedure_declaration())
+  token decl;
+  if (optional_scan_assume(PROCEDURE_RW) && procedure_declaration(decl))
     return true;
-  token var;
-  if (optional_scan_assume(VARIABLE_RW) && variable_declaration(var) && scan_assume((token_type)';'))
+  if (optional_scan_assume(VARIABLE_RW) && variable_declaration(decl) && scan_assume((token_type)';'))
   {
-    if (var.global_var)
-      output << "@" << var.tokenMark.stringValue << " = global ";
+    if (decl.global_var)
+      output << "@" << decl.tokenMark.stringValue << " = global ";
     else
-      output << "%lb_" << var.tokenHash << " = alloca ";
-    if (var.size != -1)
-      output << "[" << var.size << " x " << getLLVMType(var.dataType) << "]";
+      output << "%lb_" << decl.tokenHash << " = alloca ";
+    if (decl.size != -1)
+      output << "[" << decl.size << " x " << getLLVMType(decl.dataType) << "]";
     else
-      output << getLLVMType(var.dataType);
-    if (var.global_var)
+      output << getLLVMType(decl.dataType);
+    if (decl.global_var)
     {
-      if (var.size != -1)
+      if (decl.size != -1)
         output << " zeroinitializer" << std::endl;
       else
-        output << " " << getLLVMIntitializer(var.dataType) << std::endl;
+        output << " " << getLLVMIntitializer(decl.dataType) << std::endl;
     }
     else
       output << std::endl;
-    symbols->Completetoken(var);
+    symbols->Completetoken(decl);
     return true;
   }
   return false;
 }
 
-bool Parser::procedure_declaration() // Complete
+bool Parser::procedure_declaration(token &proc) // Complete
 {
-  return (procedure_header() && procedure_body()) ? true : resync(PROCEDURE_RW, true);
+  return (procedure_header(proc) && procedure_body()) ? true : resync(PROCEDURE_RW, true);
 }
 
-bool Parser::procedure_header()
+bool Parser::procedure_header(token &proc)
 {
-  token proc;
-  if (scan_assume(IDENTIFIER, proc) && scan_assume(TYPE_SEPERATOR) && type_mark(proc.dataType))
+  if (scan_assume(IDENTIFIER, proc, true) && scan_assume(TYPE_SEPERATOR) && type_mark(proc.dataType))
   {
     symbols->enterScope();
     std::stringstream temp;
@@ -253,7 +252,7 @@ bool Parser::procedure_body()
 
 bool Parser::variable_declaration(token &var)
 {
-  if (scan_assume(IDENTIFIER, var) && scan_assume(TYPE_SEPERATOR) && type_mark(var.dataType))
+  if (scan_assume(IDENTIFIER, var, true) && scan_assume(TYPE_SEPERATOR) && type_mark(var.dataType))
   {
     token temp;
     if (optional_scan_assume((token_type)'[') && scan_assume(INTEGER_VAL, temp))
@@ -291,19 +290,12 @@ bool Parser::statement()
   if (optional_scan_assume(RETURN_RW) && return_statement())
     return true;
   token var;
+  std::stringstream temp;
   if (optional_scan_assume(IDENTIFIER, var))
   {
-    // std::cout << "In statement tokenHash is " << var.tokenHash << " for " << var.tokenMark.stringValue << " with dataType" << var.dataType << std::endl;
-    if (optional_scan_assume(EQUAL_ASSIGN))
-    {
-      output << "lb_" << var.tokenHash << " = ";
-      assignment_statement();
-      output << std::endl;
+    if (optional_scan_assume((token_type)'(') && procedure_call(var,temp))
       return true;
-    }
-    if (optional_scan_assume((token_type)'[') && scan_assume(INTEGER_VAL) && scan_assume((token_type)']') && scan_assume(EQUAL_ASSIGN) && assignment_statement())
-      return true;
-    if (optional_scan_assume((token_type)'(') && procedure_call(var))
+    if (assignment_statement(var))
       return true;
   }
   return false;
@@ -331,103 +323,41 @@ bool Parser::if_statement()
   return false;
 }
 
-bool Parser::cond_expression(std::string &result_tag)
+bool Parser::assignment_statement(token &dest)
 {
-  result_tag = "%lb_" + std::to_string(symbols->Hashgen++);
-  output << result_tag << std::endl;
-  return expression();
-}
-
-bool Parser::expression()
-{
-  optional_scan_assume((token_type)'!');
-  if (arithOp())
-    return (optional_scan_assume((token_type)'|') || optional_scan_assume((token_type)'&')) && expression();
-  else
-    return true;
-}
-
-bool Parser::arithOp()
-{
-  if (relation())
-    return (optional_scan_assume((token_type)'+') || optional_scan_assume((token_type)'-') || optional_scan_assume((token_type)'*') || optional_scan_assume((token_type)'/')) && arithOp();
-  else
-    return true;
-}
-
-bool Parser::relation()
-{
-  if (term())
+  if (destination(dest))
   {
-    if (optional_scan_assume(LESS_THAN) || optional_scan_assume(LESS_EQUAL) || optional_scan_assume(GREATER_EQUAL) || optional_scan_assume(GREATER_THAN) || optional_scan_assume(EQUALITY) || optional_scan_assume(NOT_EQUAL))
+    if (scan_assume(EQUAL_ASSIGN))
     {
-      return relation();
+      std::stringstream exp;
+      if (expression(exp))
+      {
+        output << "%lb_" << dest.tokenHash << " = " << exp.str() << std::endl;
+        return true;
+      }
     }
-    else
-      return true;
   }
-  else
-  {
-    return false;
-  }
-}
-
-bool Parser::term()
-{
-  return factor();
-}
-
-bool Parser::factor()
-{
-  if (optional_scan_assume(TRUE_RW) || optional_scan_assume(FALSE_RW) || optional_scan_assume(STRING_VAL))
-    return true;
-  else
-  {
-    optional_scan_assume((token_type)'-');
-    token var;
-    if (optional_scan_assume(INTEGER_VAL) || optional_scan_assume(FLOAT_VAL))
-    {
-      return true;
-    }
-    else if (optional_scan_assume(IDENTIFIER, var) && destination(var))
-    {
-      output << "%lb_" << var.tokenHash;
-      // std::cout << "In if condition tokenHash is " << var.tokenHash << " for " << var.tokenMark.stringValue << " with dataType" << var.dataType << std::endl;
-      return true;
-    }
-    if (optional_scan_assume((token_type)'(') && expression() && scan_assume((token_type)')'))
-      return true;
-    return false;
-  }
-}
-
-bool Parser::argument_list(token &var)
-{
-  return expression() ? (optional_scan_assume((token_type)',') ? argument_list(var) : true) : true;
+  return true;
 }
 
 bool Parser::destination(token &var)
 {
   if (optional_scan_assume((token_type)'['))
   {
-    while (expression())
+    std::stringstream exp;
+    while (expression(exp))
       ;
     if (scan_assume((token_type)']'))
       return true;
   }
-  if (optional_scan_assume((token_type)'('))
-    procedure_call(var);
   return true;
-}
-
-bool Parser::assignment_statement()
-{
-  return expression();
 }
 
 bool Parser::loop_statement()
 {
-  if (scan_assume((token_type)'(') && scan_assume(IDENTIFIER) && scan_assume(EQUAL_ASSIGN) && assignment_statement() && scan_assume((token_type)';') && expression() && scan_assume((token_type)')'))
+  token var;
+  std::stringstream exp;
+  if (scan_assume((token_type)'(') && scan_assume(IDENTIFIER, var) && assignment_statement(var) && scan_assume((token_type)';') && expression(exp) && scan_assume((token_type)')'))
   {
     while (statement() && scan_assume((token_type)';'))
       ;
@@ -439,16 +369,102 @@ bool Parser::loop_statement()
 
 bool Parser::return_statement()
 {
-  if (expression())
+  std::stringstream exp;
+  if (expression(exp))
   {
-    output << "ret " << getLLVMType() << std::endl;
+    // output << "ret " << getLLVMType() << std::endl;
     return true;
   }
   return false;
 }
 
-bool Parser::procedure_call(token &proc)
+bool Parser::procedure_call(token &proc, std::stringstream &call)
 {
-  output << "call " << getLLVMType(proc.dataType) << " @ " << proc.tokenMark.stringValue << " (";
-  return (optional_scan_assume((token_type)')') || (argument_list(proc) && scan_assume((token_type)')')));
+  if (optional_scan_assume((token_type)')') || (argument_list(proc) && scan_assume((token_type)')')))
+  {
+    call << "call " << getLLVMType(proc.dataType) << " @ " << proc.tokenMark.stringValue << " (";
+    return true;
+  }
+  else
+    return false;
+}
+
+bool Parser::cond_expression(std::string &result_tag)
+{
+  result_tag = "%lb_" + std::to_string(symbols->Hashgen++);
+  // output << result_tag << std::endl;
+  std::stringstream exp;
+  return expression(exp);
+}
+
+bool Parser::expression(std::stringstream &exp)
+{
+  optional_scan_assume((token_type)'!'); // Might be replaced if not is a keyword
+  if (arithOp(exp))
+    return (optional_scan_assume((token_type)'|') || optional_scan_assume((token_type)'&')) && expression(exp);
+  else
+    return true;
+}
+
+bool Parser::arithOp(std::stringstream & exp)
+{
+  if (relation(exp))
+    return (optional_scan_assume((token_type)'+') || optional_scan_assume((token_type)'-') || optional_scan_assume((token_type)'*') || optional_scan_assume((token_type)'/')) && arithOp(exp);
+  else
+    return true;
+}
+
+bool Parser::relation(std::stringstream &exp)
+{
+  if (term(exp))
+  {
+    if (optional_scan_assume(LESS_THAN) || optional_scan_assume(LESS_EQUAL) || optional_scan_assume(GREATER_EQUAL) || optional_scan_assume(GREATER_THAN) || optional_scan_assume(EQUALITY) || optional_scan_assume(NOT_EQUAL))
+    {
+      return relation(exp);
+    }
+    else
+      return true;
+  }
+  else
+  {
+    return false;
+  }
+}
+
+bool Parser::term(std::stringstream &exp)
+{
+  return factor(exp);
+}
+
+bool Parser::factor(std::stringstream &exp)
+{
+  if (optional_scan_assume(TRUE_RW) || optional_scan_assume(FALSE_RW) || optional_scan_assume(STRING_VAL))
+    return true;
+  else
+  {
+    optional_scan_assume((token_type)'-');
+    token var;
+    if (optional_scan_assume(INTEGER_VAL) || optional_scan_assume(FLOAT_VAL))
+    {
+      return true;
+    }
+    else if (optional_scan_assume(IDENTIFIER, var))
+    {
+      if (optional_scan_assume((token_type)'(') && procedure_call(var, exp))
+        return true;
+      if (destination(var))
+        return true;
+      return false;
+    }
+    return false;
+  }
+}
+
+bool Parser::argument_list(token &var) // Processes for procedure call must perfrom type checking
+{
+  for (auto exp_arg : var.argType)
+    std::cout << exp_arg.type;
+  std::cout << std::endl;
+  std::stringstream exp;
+  return expression(exp) ? (optional_scan_assume((token_type)',') ? argument_list(var) : true) : true;
 }

@@ -58,27 +58,40 @@ public:
         else
             throw std::runtime_error("Hit the exitScope call at outermost scope");
     };
-    token HashLookup(token &search_for, bool &global_def)
+    token HashLookup(token &search_for, bool &global_def, bool definintion = false)
     {
         auto foundToken = current->symbol_table.find(search_for.tokenMark.stringValue);
-        if (foundToken == current->symbol_table.end())
+        auto glbfoundToken = global->symbol_table.find(search_for.tokenMark.stringValue);
+        if (definintion)
         {
-            auto glbfoundToken = global->symbol_table.find(search_for.tokenMark.stringValue);
-            if (glbfoundToken == global->symbol_table.end() && global_def == true || global == current)
+            // Define the new token
+            if ((global_def || current == global) && glbfoundToken == global->symbol_table.end())
             {
                 global_def = false;
-                search_for.global_var=true;
+                search_for.global_var = true;
                 search_for.tokenHash = Hashgen++;
                 global->symbol_table[search_for.tokenMark.stringValue] = search_for;
                 return global->symbol_table.find(search_for.tokenMark.stringValue)->second;
             }
-            search_for.tokenHash = Hashgen++;
-            current->symbol_table[search_for.tokenMark.stringValue] = search_for;
-            return current->symbol_table.find(search_for.tokenMark.stringValue)->second;
+            else if ((!global_def && current != global) && foundToken == current->symbol_table.end())
+            {
+                search_for.tokenHash = Hashgen++;
+                current->symbol_table[search_for.tokenMark.stringValue] = search_for;
+                return current->symbol_table.find(search_for.tokenMark.stringValue)->second;
+            }
+            else
+            {
+                std::cout << "Token already defined" << search_for.tokenMark.stringValue << std::endl; // Raise error for redefinintionn of token
+            }
         }
         else
         {
-            return current->symbol_table.find(search_for.tokenMark.stringValue)->second;
+            if (foundToken != current->symbol_table.end())
+                return foundToken->second;
+            else if (glbfoundToken != global->symbol_table.end())
+                return glbfoundToken->second;
+            else
+                std::cout << "Token not defined" << search_for.tokenMark.stringValue << std::endl;
         }
     };
     void Completetoken(token &search_for)
@@ -124,34 +137,34 @@ private:
     bool global_flag = false;
     bool scan_assume(token_type);
     bool optional_scan_assume(token_type);
-    bool scan_assume(token_type, token &);
-    bool optional_scan_assume(token_type, token &);
+    bool scan_assume(token_type, token &, bool);
+    bool optional_scan_assume(token_type, token &, bool);
     bool resync(token_type, bool);
-    bool typeCheck(token& , token& , token_type);
-    bool typeCheck(token& , token& , token& , token_type);
+    bool typeCheck(token &, token &, token_type);
+    bool typeCheck(token &, token &, token &, token_type);
     bool program_header();
     bool program_body();
     bool declaration();
-    bool procedure_declaration();
-    bool procedure_header();
+    bool procedure_declaration(token &);
+    bool procedure_header(token &);
     bool parameter_list(std::vector<token> &);
     bool parameter(token &);
     bool procedure_body();
     bool variable_declaration(token &);
     bool type_mark(token_type &);
     bool statement();
-    bool procedure_call(token &);
-    bool assignment_statement();
+    bool procedure_call(token &, std::stringstream &);
+    bool assignment_statement(token &);
     bool destination(token &);
     bool if_statement();
     bool loop_statement();
     bool return_statement();
-    bool expression();
-    bool cond_expression(std::string&);
-    bool arithOp();
-    bool relation();
-    bool term();
-    bool factor();
+    bool expression(std::stringstream &);
+    bool cond_expression(std::string &);
+    bool arithOp(std::stringstream &);
+    bool relation(std::stringstream &);
+    bool term(std::stringstream &);
+    bool factor(std::stringstream &);
     bool argument_list(token &);
 
 public:
@@ -159,7 +172,7 @@ public:
     std::stringstream output;
     bool program();
     Symbols *symbols;
-    int label_gen=10;
+    int label_gen = 10;
     Parser(std::string filename) : lexer_handle(filename)
     {
         auto globalstream = std::stringstream();
@@ -169,7 +182,8 @@ public:
     }
 };
 
-inline std::string getLLVMType(token_type dataType=UNKNOWN) {
+inline std::string getLLVMType(token_type dataType = UNKNOWN)
+{
     if (dataType == INTEGER_RW)
         return "i32";
     if (dataType == FLOAT_RW)
@@ -181,7 +195,8 @@ inline std::string getLLVMType(token_type dataType=UNKNOWN) {
     return "unknown";
 }
 
-inline std::string getLLVMIntitializer(token_type dataType=UNKNOWN) {
+inline std::string getLLVMIntitializer(token_type dataType = UNKNOWN)
+{
     if (dataType == INTEGER_RW)
         return "0";
     if (dataType == FLOAT_RW)
