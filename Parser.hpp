@@ -4,6 +4,20 @@
 #include <cstring>
 #include <iostream>
 
+class TokenNotFoundError : public std::runtime_error
+{
+public:
+    TokenNotFoundError(const std::string &token)
+        : std::runtime_error("Token not found: " + token) {}
+};
+
+class TokenRedefinitionError : public std::runtime_error
+{
+public:
+    TokenRedefinitionError(const std::string &token)
+        : std::runtime_error("Token already defined: " + token) {}
+};
+
 struct Scope
 {
     std::map<std::string, token> symbol_table;
@@ -81,7 +95,7 @@ public:
             }
             else
             {
-                std::cout << "Token already defined" << search_for.tokenMark.stringValue << std::endl; // Raise error for redefinintionn of token
+                throw TokenRedefinitionError(search_for.tokenMark.stringValue);
             }
         }
         else
@@ -91,7 +105,7 @@ public:
             else if (glbfoundToken != global->symbol_table.end())
                 return glbfoundToken->second;
             else
-                std::cout << "Token not defined" << search_for.tokenMark.stringValue << std::endl;
+                throw TokenNotFoundError(search_for.tokenMark.stringValue);
         }
     };
     void Completetoken(token &search_for)
@@ -179,6 +193,26 @@ public:
         buffer.push_back(std::move(globalstream));
         symbols = new Symbols();
         cur_tk = lexer_handle.scan();
+        output << "define i1 @getBool() {" << std::endl
+               << "%loadedBool = load i1, i1* @boolInput" << std::endl
+               << "ret i1 %loadedBool" << std::endl
+               << "}" << std::endl
+               << std::endl
+               << "define i32 @getInteger() {" << std::endl
+               << "%loadedInt = load i32, i32* @intInput" << std::endl
+               << "ret i32 %loadedInt" << std::endl
+               << "}" << std::endl
+               << std::endl
+               << "define float @getFloat() {" << std::endl
+               << "%loadedFloat = load float, float* @floatInput" << std::endl
+               << "ret float %loadedFloat" << std::endl
+               << "}" << std::endl
+               << std::endl
+               << "define i8* @getString() {" << std::endl
+               << "%loadedString = load [256 x i8], [256 x i8]* @stringInput" << std::endl
+               << "ret i8* %loadedString" << std::endl
+               << "}" << std::endl
+               << std::endl;
     }
 };
 

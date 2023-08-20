@@ -293,7 +293,7 @@ bool Parser::statement()
   std::stringstream temp;
   if (optional_scan_assume(IDENTIFIER, var))
   {
-    if (optional_scan_assume((token_type)'(') && procedure_call(var,temp))
+    if (optional_scan_assume((token_type)'(') && procedure_call(var, temp))
       return true;
     if (assignment_statement(var))
       return true;
@@ -392,9 +392,14 @@ bool Parser::procedure_call(token &proc, std::stringstream &call)
 bool Parser::cond_expression(std::string &result_tag)
 {
   result_tag = "%lb_" + std::to_string(symbols->Hashgen++);
-  // output << result_tag << std::endl;
   std::stringstream exp;
-  return expression(exp);
+  if (expression(exp))
+  {
+    output << result_tag << " = " << exp.str() << std::endl;
+    return true;
+  }
+  else
+    return false;
 }
 
 bool Parser::expression(std::stringstream &exp)
@@ -406,7 +411,7 @@ bool Parser::expression(std::stringstream &exp)
     return true;
 }
 
-bool Parser::arithOp(std::stringstream & exp)
+bool Parser::arithOp(std::stringstream &exp)
 {
   if (relation(exp))
     return (optional_scan_assume((token_type)'+') || optional_scan_assume((token_type)'-') || optional_scan_assume((token_type)'*') || optional_scan_assume((token_type)'/')) && arithOp(exp);
