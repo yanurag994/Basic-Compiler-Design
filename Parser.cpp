@@ -9,8 +9,10 @@ bool Parser::scan_assume(token_type type, token &returned, bool definition = fal
   {
     if (cur_tk.type == IDENTIFIER)
       returned = symbols->HashLookup(cur_tk, global_flag, definition);
-    if (cur_tk.type == INTEGER_VAL || cur_tk.type == FLOAT_VAL)
+    if (cur_tk.type == INTEGER_VAL || cur_tk.type == FLOAT_VAL || cur_tk.type == STRING_VAL || cur_tk.type == TRUE_RW || cur_tk.type == FALSE_RW)
       returned = cur_tk;
+    if (cur_tk.type == (token_type)'+' || cur_tk.type == (token_type)'-' || cur_tk.type == (token_type)'*' || cur_tk.type == (token_type)'/')
+      returned.type = cur_tk.type;
     if (type != (token_type)'.')
     {
       prev_tk = cur_tk;
@@ -33,8 +35,10 @@ bool Parser::optional_scan_assume(token_type type, token &returned, bool definit
   {
     if (cur_tk.type == IDENTIFIER)
       returned = symbols->HashLookup(cur_tk, global_flag, definition);
-    if (cur_tk.type == INTEGER_VAL || cur_tk.type == FLOAT_VAL)
+    if (cur_tk.type == INTEGER_VAL || cur_tk.type == FLOAT_VAL || cur_tk.type == STRING_VAL || cur_tk.type == TRUE_RW || cur_tk.type == FALSE_RW)
       returned = cur_tk;
+    if (cur_tk.type == (token_type)'+' || cur_tk.type == (token_type)'-' || cur_tk.type == (token_type)'*' || cur_tk.type == (token_type)'/')
+      returned.type = cur_tk.type;
     if (type != (token_type)'.')
     {
       prev_tk = cur_tk;
@@ -93,10 +97,21 @@ bool Parser::resync(token_type type, bool ahead = false)
   return false;
 }
 
-bool Parser::typeCheck(token &first, token &second, token_type op)
+bool Parser::typeCheck(token &first, token &second, token_type op, std::stringstream &tmp)
 {
-  if ((op == (token_type)'+' || op == (token_type)'-') && (first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
+  std::cout << "Here" << first.dataType << " " << first.type << " " << second.dataType << " " << second.type << " " << op << std::endl;
+  if ((op == (token_type)'+') && (first.dataType == INTEGER_RW || first.type == INTEGER_VAL) && (second.dataType == INTEGER_RW || second.type == INTEGER_VAL))
+  {
+    tmp << "add nsw i32";
     return true; // Integer result
+  }
+  if ((op == (token_type)'-') && (first.dataType == INTEGER_RW || first.type == INTEGER_VAL) && (second.dataType == INTEGER_RW || second.type == INTEGER_VAL))
+  {
+    tmp << "sub nsw i32";
+    return true; // Integer result
+  }
+  if ((op == (token_type)'+' || op == (token_type)'-') && (first.dataType == FLOAT_VAL || first.dataType == FLOAT_RW || first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == FLOAT_VAL || second.dataType == FLOAT_RW || second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
+    return true; // Float result
   if ((op == (token_type)'+' || op == (token_type)'-') && (first.dataType == FLOAT_VAL || first.dataType == FLOAT_RW || first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == FLOAT_VAL || second.dataType == FLOAT_RW || second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
     return true; // Float result
   return false;
@@ -290,14 +305,8 @@ bool Parser::statement()
   if (optional_scan_assume(RETURN_RW) && return_statement())
     return true;
   token var;
-  std::stringstream temp;
-  if (optional_scan_assume(IDENTIFIER, var))
-  {
-    if (optional_scan_assume((token_type)'(') && procedure_call(var, temp))
-      return true;
-    if (assignment_statement(var))
-      return true;
-  }
+  if (optional_scan_assume(IDENTIFIER, var) && assignment_statement(var))
+    return true;
   return false;
 }
 
@@ -382,7 +391,7 @@ bool Parser::procedure_call(token &proc, std::stringstream &call)
 {
   if (optional_scan_assume((token_type)')') || (argument_list(proc) && scan_assume((token_type)')')))
   {
-    call << "call " << getLLVMType(proc.dataType) << " @ " << proc.tokenMark.stringValue << " (";
+    call << "call " << getLLVMType(proc.dataType) << " @" << proc.tokenMark.stringValue << "(";
     return true;
   }
   else
@@ -405,51 +414,89 @@ bool Parser::cond_expression(std::string &result_tag)
 bool Parser::expression(std::stringstream &exp)
 {
   optional_scan_assume((token_type)'!'); // Might be replaced if not is a keyword
-  if (arithOp(exp))
-    return (optional_scan_assume((token_type)'|') || optional_scan_assume((token_type)'&')) && expression(exp);
-  else
-    return true;
-}
-
-bool Parser::arithOp(std::stringstream &exp)
-{
-  if (relation(exp))
-    return (optional_scan_assume((token_type)'+') || optional_scan_assume((token_type)'-') || optional_scan_assume((token_type)'*') || optional_scan_assume((token_type)'/')) && arithOp(exp);
-  else
-    return true;
-}
-
-bool Parser::relation(std::stringstream &exp)
-{
-  if (term(exp))
+  token arith_res;
+  if (arithOp(arith_res, exp))
   {
-    if (optional_scan_assume(LESS_THAN) || optional_scan_assume(LESS_EQUAL) || optional_scan_assume(GREATER_EQUAL) || optional_scan_assume(GREATER_THAN) || optional_scan_assume(EQUALITY) || optional_scan_assume(NOT_EQUAL))
-    {
-      return relation(exp);
-    }
+    if (optional_scan_assume((token_type)'|') || optional_scan_assume((token_type)'&'))
+      return expression(exp);
     else
       return true;
   }
   else
+    return true;
+}
+
+bool Parser::arithOp(token &var, std::stringstream &exp)
+{
+  token var_1, var_2, op;
+  if (relation(var_1, exp))
   {
+    if ((optional_scan_assume((token_type)'+', op) || optional_scan_assume((token_type)'-', op) || optional_scan_assume((token_type)'*', op) || optional_scan_assume((token_type)'/', op)))
+    {
+      if (arithOp(var_2, exp))
+      {
+        std::cout << "Arith 1 " << var_1.type << " " << var_1.tokenMark.intValue << " " << var_1.dataType << " " << op.type << std::endl;
+        std::cout << "Arith 2 " << var_2.type << " " << var_2.tokenMark.intValue << " " << var_2.dataType << std::endl;
+        typeCheck(var_1, var_2, op.type, exp);
+        // evaluate resultant token values and types and return that
+        // Will do type checking here
+        var = var_2;
+        return true;
+      }
+      else
+      {
+        var = var_1;
+        return false;
+      }
+    }
+    else
+    {
+      // std::cout << "No type check " << var_1.type << " " << var_1.tokenMark.intValue << " " << var_1.tokenMark.stringValue << std::endl;
+      var = var_1;
+      return true;
+    }
+  }
+  else
+    return false;
+}
+
+bool Parser::relation(token &var, std::stringstream &exp)
+{
+  token var_1, var_2;
+  if (term(var_1, exp))
+  {
+    if (optional_scan_assume((token_type)'<') || optional_scan_assume(LESS_EQUAL) || optional_scan_assume(GREATER_EQUAL) || optional_scan_assume((token_type)'>') || optional_scan_assume(EQUALITY) || optional_scan_assume(NOT_EQUAL))
+    {
+      // evaluate resultant token values and types and return that
+      return relation(var_2, exp);
+    }
+    else
+    {
+      var = var_1;
+      return true;
+    }
+  }
+  else
+  {
+
     return false;
   }
 }
 
-bool Parser::term(std::stringstream &exp)
+bool Parser::term(token &var, std::stringstream &exp)
 {
-  return factor(exp);
+  return factor(var, exp);
 }
 
-bool Parser::factor(std::stringstream &exp)
+bool Parser::factor(token &var, std::stringstream &exp)
 {
-  if (optional_scan_assume(TRUE_RW) || optional_scan_assume(FALSE_RW) || optional_scan_assume(STRING_VAL))
+
+  if (optional_scan_assume(TRUE_RW, var) || optional_scan_assume(FALSE_RW, var) || optional_scan_assume(STRING_VAL, var))
     return true;
   else
   {
     optional_scan_assume((token_type)'-');
-    token var;
-    if (optional_scan_assume(INTEGER_VAL) || optional_scan_assume(FLOAT_VAL))
+    if (optional_scan_assume(INTEGER_VAL, var) || optional_scan_assume(FLOAT_VAL, var))
     {
       return true;
     }
@@ -467,9 +514,6 @@ bool Parser::factor(std::stringstream &exp)
 
 bool Parser::argument_list(token &var) // Processes for procedure call must perfrom type checking
 {
-  for (auto exp_arg : var.argType)
-    std::cout << exp_arg.type;
-  std::cout << std::endl;
   std::stringstream exp;
   return expression(exp) ? (optional_scan_assume((token_type)',') ? argument_list(var) : true) : true;
 }

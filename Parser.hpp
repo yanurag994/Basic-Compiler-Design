@@ -111,21 +111,13 @@ public:
     void Completetoken(token &search_for)
     {
         auto glbfoundToken = global->symbol_table.find(search_for.tokenMark.stringValue);
-        if (glbfoundToken != global->symbol_table.end())
-        {
-            glbfoundToken->second = search_for;
-            return;
-        }
         auto foundToken = current->symbol_table.find(search_for.tokenMark.stringValue);
+        if (glbfoundToken != global->symbol_table.end())
+            glbfoundToken->second = search_for;
         if (foundToken != current->symbol_table.end())
-        {
             foundToken->second = search_for;
-            return;
-        }
-        else
-        {
+        if(glbfoundToken == global->symbol_table.end() && foundToken == current->symbol_table.end())
             current->symbol_table[search_for.tokenMark.stringValue] = search_for;
-        }
         return;
     };
     void CompleteDeclPrevtoken(token &search_for)
@@ -154,7 +146,7 @@ private:
     bool scan_assume(token_type, token &, bool);
     bool optional_scan_assume(token_type, token &, bool);
     bool resync(token_type, bool);
-    bool typeCheck(token &, token &, token_type);
+    bool typeCheck(token &, token &, token_type, std::stringstream &);
     bool typeCheck(token &, token &, token &, token_type);
     bool program_header();
     bool program_body();
@@ -175,10 +167,10 @@ private:
     bool return_statement();
     bool expression(std::stringstream &);
     bool cond_expression(std::string &);
-    bool arithOp(std::stringstream &);
-    bool relation(std::stringstream &);
-    bool term(std::stringstream &);
-    bool factor(std::stringstream &);
+    bool arithOp(token &, std::stringstream &);
+    bool relation(token &, std::stringstream &);
+    bool term(token &, std::stringstream &);
+    bool factor(token &, std::stringstream &);
     bool argument_list(token &);
 
 public:
@@ -193,7 +185,7 @@ public:
         buffer.push_back(std::move(globalstream));
         symbols = new Symbols();
         cur_tk = lexer_handle.scan();
-        output << "define i1 @getBool() {" << std::endl
+        /*output << "define i1 @getBool() {" << std::endl
                << "%loadedBool = load i1, i1* @boolInput" << std::endl
                << "ret i1 %loadedBool" << std::endl
                << "}" << std::endl
@@ -207,12 +199,7 @@ public:
                << "%loadedFloat = load float, float* @floatInput" << std::endl
                << "ret float %loadedFloat" << std::endl
                << "}" << std::endl
-               << std::endl
-               << "define i8* @getString() {" << std::endl
-               << "%loadedString = load [256 x i8], [256 x i8]* @stringInput" << std::endl
-               << "ret i8* %loadedString" << std::endl
-               << "}" << std::endl
-               << std::endl;
+               << std::endl;*/
     }
 };
 
