@@ -116,7 +116,7 @@ public:
             glbfoundToken->second = search_for;
         if (foundToken != current->symbol_table.end())
             foundToken->second = search_for;
-        if(glbfoundToken == global->symbol_table.end() && foundToken == current->symbol_table.end())
+        if (glbfoundToken == global->symbol_table.end() && foundToken == current->symbol_table.end())
             current->symbol_table[search_for.tokenMark.stringValue] = search_for;
         return;
     };
@@ -226,5 +226,14 @@ inline std::string getLLVMIntitializer(token_type dataType = UNKNOWN)
         return "i32";
     if (dataType == BOOLEAN_RW)
         return "0";
+    return "unknown";
+}
+
+inline std::string getLLVMform(token &tk)
+{
+    if (tk.type == IDENTIFIER)
+        return "%lb"+std::to_string(tk.tokenHash);
+    if(tk.type == INTEGER_VAL)
+        return std::to_string(tk.tokenMark.intValue);
     return "unknown";
 }

@@ -11,6 +11,8 @@ bool Parser::scan_assume(token_type type, token &returned, bool definition = fal
       returned = symbols->HashLookup(cur_tk, global_flag, definition);
     if (cur_tk.type == INTEGER_VAL || cur_tk.type == FLOAT_VAL || cur_tk.type == STRING_VAL || cur_tk.type == TRUE_RW || cur_tk.type == FALSE_RW)
       returned = cur_tk;
+    if (cur_tk.type == INTEGER_RW || cur_tk.type == FLOAT_RW || cur_tk.type == STRING_RW)
+      returned = cur_tk;
     if (cur_tk.type == (token_type)'+' || cur_tk.type == (token_type)'-' || cur_tk.type == (token_type)'*' || cur_tk.type == (token_type)'/')
       returned.type = cur_tk.type;
     if (type != (token_type)'.')
@@ -36,6 +38,8 @@ bool Parser::optional_scan_assume(token_type type, token &returned, bool definit
     if (cur_tk.type == IDENTIFIER)
       returned = symbols->HashLookup(cur_tk, global_flag, definition);
     if (cur_tk.type == INTEGER_VAL || cur_tk.type == FLOAT_VAL || cur_tk.type == STRING_VAL || cur_tk.type == TRUE_RW || cur_tk.type == FALSE_RW)
+      returned = cur_tk;
+    if (cur_tk.type == INTEGER_RW || cur_tk.type == FLOAT_RW || cur_tk.type == STRING_RW)
       returned = cur_tk;
     if (cur_tk.type == (token_type)'+' || cur_tk.type == (token_type)'-' || cur_tk.type == (token_type)'*' || cur_tk.type == (token_type)'/')
       returned.type = cur_tk.type;
@@ -99,21 +103,26 @@ bool Parser::resync(token_type type, bool ahead = false)
 
 bool Parser::typeCheck(token &first, token &second, token_type op, std::stringstream &tmp)
 {
-  std::cout << "Here" << first.dataType << " " << first.type << " " << second.dataType << " " << second.type << " " << op << std::endl;
   if ((op == (token_type)'+') && (first.dataType == INTEGER_RW || first.type == INTEGER_VAL) && (second.dataType == INTEGER_RW || second.type == INTEGER_VAL))
   {
-    tmp << "add nsw i32";
+    tmp << "add nsw i32 " << getLLVMform(first) << ", " << getLLVMform(second);
     return true; // Integer result
   }
   if ((op == (token_type)'-') && (first.dataType == INTEGER_RW || first.type == INTEGER_VAL) && (second.dataType == INTEGER_RW || second.type == INTEGER_VAL))
   {
-    tmp << "sub nsw i32";
+    tmp << "sub nsw i32 " << getLLVMform(first) << ", " << getLLVMform(second);
     return true; // Integer result
   }
-  if ((op == (token_type)'+' || op == (token_type)'-') && (first.dataType == FLOAT_VAL || first.dataType == FLOAT_RW || first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == FLOAT_VAL || second.dataType == FLOAT_RW || second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
+  if ((op == (token_type)'+') && (first.dataType == FLOAT_VAL || first.dataType == FLOAT_RW || first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == FLOAT_VAL || second.dataType == FLOAT_RW || second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
+  {
+    tmp << "fadd nsw float " << getLLVMform(first) << ", " << getLLVMform(second);
     return true; // Float result
-  if ((op == (token_type)'+' || op == (token_type)'-') && (first.dataType == FLOAT_VAL || first.dataType == FLOAT_RW || first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == FLOAT_VAL || second.dataType == FLOAT_RW || second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
+  }
+  if ((op == (token_type)'-') && (first.dataType == FLOAT_VAL || first.dataType == FLOAT_RW || first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == FLOAT_VAL || second.dataType == FLOAT_RW || second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
+  {
+    tmp << "fsub nsw float " << getLLVMform(first) << ", " << getLLVMform(second);
     return true; // Float result
+  }
   return false;
 }
 
@@ -389,9 +398,10 @@ bool Parser::return_statement()
 
 bool Parser::procedure_call(token &proc, std::stringstream &call)
 {
+  call << "call " << getLLVMType(proc.dataType) << " @" << proc.tokenMark.stringValue << "(";
   if (optional_scan_assume((token_type)')') || (argument_list(proc) && scan_assume((token_type)')')))
   {
-    call << "call " << getLLVMType(proc.dataType) << " @" << proc.tokenMark.stringValue << "(";
+    call << ")";
     return true;
   }
   else
@@ -435,8 +445,6 @@ bool Parser::arithOp(token &var, std::stringstream &exp)
     {
       if (arithOp(var_2, exp))
       {
-        std::cout << "Arith 1 " << var_1.type << " " << var_1.tokenMark.intValue << " " << var_1.dataType << " " << op.type << std::endl;
-        std::cout << "Arith 2 " << var_2.type << " " << var_2.tokenMark.intValue << " " << var_2.dataType << std::endl;
         typeCheck(var_1, var_2, op.type, exp);
         // evaluate resultant token values and types and return that
         // Will do type checking here
@@ -451,7 +459,6 @@ bool Parser::arithOp(token &var, std::stringstream &exp)
     }
     else
     {
-      // std::cout << "No type check " << var_1.type << " " << var_1.tokenMark.intValue << " " << var_1.tokenMark.stringValue << std::endl;
       var = var_1;
       return true;
     }
