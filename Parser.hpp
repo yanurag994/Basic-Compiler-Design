@@ -147,7 +147,7 @@ private:
     bool optional_scan_assume(token_type, token &, bool);
     bool resync(token_type, bool);
     bool typeCheck(token &, token &, token_type, std::stringstream &);
-    bool typeCheck(token &, token &, token &, token_type);
+    bool typeCheck(token &, token &, token &, token_type, std::stringstream &);
     bool program_header();
     bool program_body();
     bool declaration();
@@ -165,13 +165,12 @@ private:
     bool if_statement();
     bool loop_statement();
     bool return_statement();
-    bool expression(std::stringstream &);
+    bool expression(token &, std::stringstream &);
     bool cond_expression(std::string &);
-    bool arithOp(token &, std::stringstream &);
+    bool arithOp(token &, std::stringstream &, token_type = UNKNOWN);
     bool relation(token &, std::stringstream &);
-    bool term(token &, std::stringstream &);
     bool factor(token &, std::stringstream &);
-    bool argument_list(token &);
+    bool argument_list(token &, std::stringstream &);
 
 public:
     std::vector<std::stringstream> buffer;
@@ -205,11 +204,11 @@ public:
 
 inline std::string getLLVMType(token_type dataType = UNKNOWN)
 {
-    if (dataType == INTEGER_RW)
+    if (dataType == INTEGER_RW || dataType == INTEGER_VAL)
         return "i32";
-    if (dataType == FLOAT_RW)
+    if (dataType == INTEGER_RW || dataType == INTEGER_VAL)
         return "float";
-    if (dataType == STRING_RW)
+    if (dataType == STRING_RW || dataType == INTEGER_VAL)
         return "i32";
     if (dataType == BOOLEAN_RW)
         return "i8";
@@ -232,8 +231,8 @@ inline std::string getLLVMIntitializer(token_type dataType = UNKNOWN)
 inline std::string getLLVMform(token &tk)
 {
     if (tk.type == IDENTIFIER)
-        return "%lb"+std::to_string(tk.tokenHash);
-    if(tk.type == INTEGER_VAL)
+        return "%lb_" + std::to_string(tk.tokenHash);
+    if (tk.type == INTEGER_VAL)
         return std::to_string(tk.tokenMark.intValue);
     return "unknown";
 }
