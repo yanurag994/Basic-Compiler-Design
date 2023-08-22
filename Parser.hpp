@@ -146,7 +146,6 @@ private:
     bool scan_assume(token_type, token &, bool);
     bool optional_scan_assume(token_type, token &, bool);
     bool resync(token_type, bool);
-    bool typeCheck(token &, token &, token_type, std::stringstream &);
     bool typeCheck(token &, token &, token &, token_type, std::stringstream &);
     bool program_header();
     bool program_body();

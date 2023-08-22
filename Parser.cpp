@@ -77,31 +77,6 @@ bool Parser::resync(token_type type, bool ahead = false)
   return false;
 }
 
-bool Parser::typeCheck(token &first, token &second, token_type op, std::stringstream &tmp)
-{
-  if ((op == (token_type)'+') && (first.dataType == INTEGER_RW || first.type == INTEGER_VAL) && (second.dataType == INTEGER_RW || second.type == INTEGER_VAL))
-  {
-    tmp << "add i32 " << getLLVMform(first) << ", " << getLLVMform(second);
-    return true; // Integer result
-  }
-  if ((op == (token_type)'-') && (first.dataType == INTEGER_RW || first.type == INTEGER_VAL) && (second.dataType == INTEGER_RW || second.type == INTEGER_VAL))
-  {
-    tmp << "sub i32 " << getLLVMform(first) << ", " << getLLVMform(second);
-    return true; // Integer result
-  }
-  if ((op == (token_type)'+') && (first.dataType == FLOAT_VAL || first.dataType == FLOAT_RW || first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == FLOAT_VAL || second.dataType == FLOAT_RW || second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
-  {
-    tmp << "fadd float " << getLLVMform(first) << ", " << getLLVMform(second);
-    return true; // Float result
-  }
-  if ((op == (token_type)'-') && (first.dataType == FLOAT_VAL || first.dataType == FLOAT_RW || first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == FLOAT_VAL || second.dataType == FLOAT_RW || second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
-  {
-    tmp << "fsub float " << getLLVMform(first) << ", " << getLLVMform(second);
-    return true; // Float result
-  }
-  return false;
-}
-
 bool Parser::typeCheck(token &first, token &second, token &result, token_type op, std::stringstream &tmp)
 {
   std::string op1_Hash = getLLVMform(first), op2_Hash = getLLVMform(second);
@@ -145,12 +120,12 @@ bool Parser::typeCheck(token &first, token &second, token &result, token_type op
     tmp << "%lb_" << result.tokenHash << " = fsub float " << op1_Hash << ", " << op2_Hash << std::endl;
     return true; // Float result
   }
-  if ((op == (token_type)'+') && (first.dataType == FLOAT_VAL || first.dataType == FLOAT_RW || first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == FLOAT_VAL || second.dataType == FLOAT_RW || second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
+  if ((op == (token_type)'*') && (first.dataType == FLOAT_VAL || first.dataType == FLOAT_RW || first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == FLOAT_VAL || second.dataType == FLOAT_RW || second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
   {
     tmp << "%lb_" << result.tokenHash << " = fmul float " << op1_Hash << ", " << op2_Hash << std::endl;
     return true; // Float result
   }
-  if ((op == (token_type)'-') && (first.dataType == FLOAT_VAL || first.dataType == FLOAT_RW || first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == FLOAT_VAL || second.dataType == FLOAT_RW || second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
+  if ((op == (token_type)'/') && (first.dataType == FLOAT_VAL || first.dataType == FLOAT_RW || first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == FLOAT_VAL || second.dataType == FLOAT_RW || second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
   {
     tmp << "%lb_" << result.tokenHash << " = fdic float " << op1_Hash << ", " << op2_Hash << std::endl;
     return true; // Float result
