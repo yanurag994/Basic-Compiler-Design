@@ -263,6 +263,7 @@ bool Parser::parameter_list(std::vector<token> &argType)
   {
     token arg;
     auto valid = parameter(arg);
+    arg.pointer = true;
     symbols->Completetoken(arg);
     argType.push_back(arg);
     if (optional_scan_assume((token_type)','))
@@ -393,12 +394,16 @@ bool Parser::assignment_statement(token &dest)
         output << exp.str();
         if (result.type == IDENTIFIER)
         {
-          std::string temp_Hash = std::to_string(symbols->Hashgen++);
           if (result.pointer)
+          {
+            std::string temp_Hash = std::to_string(symbols->Hashgen++);
             output << "%lb_" << temp_Hash << " = load " << getLLVMType(result.dataType) << ", " << getLLVMType(result.dataType) << "* %lb_" << result.tokenHash << std::endl;
+            output << "store " << getLLVMType(result.dataType) << " %lb_" << temp_Hash << ", " << getLLVMType(dest.dataType) << "* %lb_" << dest.tokenHash << std::endl;
+          }
           else
-            output << "%lb_" << temp_Hash << " = load " << getLLVMType(result.dataType) << "*, %lb_" << result.tokenHash << std::endl;
-          output << "store " << getLLVMType(result.dataType) << " %lb_" << temp_Hash << ", " << getLLVMType(dest.dataType) << "* %lb_" << dest.tokenHash << std::endl;
+          {
+            output << "store " << getLLVMType(result.dataType) << " %lb_" << result.tokenHash << ", " << getLLVMType(dest.dataType) << "* %lb_" << dest.tokenHash << std::endl;
+          }
         }
         else if (result.type == INTEGER_VAL)
           output
@@ -588,7 +593,7 @@ bool Parser::relation(token &var, std::stringstream &exp)
         var.type = IDENTIFIER;
         var.tokenHash = symbols->Hashgen++;
         var.dataType = BOOLEAN_RW;
-        std::string op1_Hash = getLLVMform(var_1), op2_Hash = getLLVMform(var_2);
+        std::string op1_Hash = getLLVMvar_val(var_1), op2_Hash = getLLVMvar_val(var_2);
         if (var_1.pointer)
         {
           op1_Hash = "%lb_" + std::to_string(symbols->Hashgen++);
@@ -599,7 +604,7 @@ bool Parser::relation(token &var, std::stringstream &exp)
           op2_Hash = "%lb_" + std::to_string(symbols->Hashgen++);
           exp << op2_Hash << " = load " << getLLVMType(var_2.dataType) << ", " << getLLVMType(var_2.dataType) << "* %lb_" << var_2.tokenHash << std::endl;
         }
-        exp << "%lb_" << var.tokenHash << " = icmp " << getLLVMop(op) << " " << getLLVMType(var_1.dataType) << " " << getLLVMvar_val(var_1) << ", " << getLLVMvar_val(var_2);
+        exp << "%lb_" << var.tokenHash << " = icmp " << getLLVMop(op) << " " << getLLVMType(var_1.dataType) << " " << op1_Hash << ", " << op2_Hash;
         return true;
       }
       else

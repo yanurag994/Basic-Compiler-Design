@@ -9,5 +9,6 @@ CMakeCache.txt
 Makefile
 *.a
 cmake_install.cmake
+*.ll
 
 Compiler
