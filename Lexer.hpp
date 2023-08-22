@@ -67,6 +67,7 @@ struct basetoken
     int tokenHash;
     token_type dataType; // Holds datatype for variable and return type for procedure
     int size = -1;
+    bool pointer = false;
     basetoken() : tokenHash(), type(UNKNOWN) {}
     basetoken(token_type type, const tokenMk &tokenMark, int tokenHash, token_type dataType, int size = -1)
         : type(type), tokenMark(tokenMark), tokenHash(tokenHash), dataType(dataType), size(size) {}

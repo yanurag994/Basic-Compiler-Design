@@ -155,7 +155,7 @@ private:
     bool procedure_header(token &);
     bool parameter_list(std::vector<token> &);
     bool parameter(token &);
-    bool procedure_body();
+    bool procedure_body(token &);
     bool variable_declaration(token &);
     bool type_mark(token_type &);
     bool statement();
@@ -166,7 +166,7 @@ private:
     bool loop_statement();
     bool return_statement();
     bool expression(token &, std::stringstream &);
-    bool cond_expression(std::string &);
+    bool cond_expression(token &);
     bool arithOp(token &, std::stringstream &, token_type = UNKNOWN);
     bool relation(token &, std::stringstream &);
     bool factor(token &, std::stringstream &);
@@ -206,7 +206,7 @@ inline std::string getLLVMType(token_type dataType = UNKNOWN)
 {
     if (dataType == INTEGER_RW || dataType == INTEGER_VAL)
         return "i32";
-    if (dataType == INTEGER_RW || dataType == INTEGER_VAL)
+    if (dataType == FLOAT_RW || dataType == FLOAT_VAL)
         return "float";
     if (dataType == STRING_RW || dataType == INTEGER_VAL)
         return "i32";
@@ -234,5 +234,37 @@ inline std::string getLLVMform(token &tk)
         return "%lb_" + std::to_string(tk.tokenHash);
     if (tk.type == INTEGER_VAL)
         return std::to_string(tk.tokenMark.intValue);
+    return "unknown";
+}
+
+inline std::string getLLVMvar_val(token &tk)
+{
+    if (tk.type == IDENTIFIER)
+        return "%lb_" + std::to_string(tk.tokenHash);
+    if (tk.type == INTEGER_VAL)
+        return std::to_string(tk.tokenMark.intValue);
+    if (tk.type == FLOAT_VAL)
+        return std::to_string(tk.tokenMark.doubleValue);
+    if (tk.type == BOOLEAN_RW)
+        return std::to_string(tk.tokenMark.intValue);
+    if (tk.type == STRING_VAL)
+        return tk.tokenMark.stringValue;
+    return "unknown";
+}
+
+inline std::string getLLVMop(token &tk)
+{
+    if (tk.type == EQUALITY)
+        return "eq";
+    if (tk.type == (token_type)'<')
+        return "slt";
+    if (tk.type == LESS_EQUAL)
+        return "sle";
+    if (tk.type == (token_type)'>')
+        return "sgt";
+    if (tk.type == GREATER_EQUAL)
+        return "sge";
+    if (tk.type == NOT_EQUAL)
+        return "ne";
     return "unknown";
 }

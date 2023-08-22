@@ -5,21 +5,8 @@
 
 bool Parser::scan_assume(token_type type, token &returned, bool definition = false)
 {
-  if (cur_tk.type == type)
+  if (optional_scan_assume(type, returned, definition))
   {
-    if (cur_tk.type == IDENTIFIER)
-      returned = symbols->HashLookup(cur_tk, global_flag, definition);
-    if (cur_tk.type == INTEGER_VAL || cur_tk.type == FLOAT_VAL || cur_tk.type == STRING_VAL || cur_tk.type == TRUE_RW || cur_tk.type == FALSE_RW)
-      returned = cur_tk;
-    if (cur_tk.type == INTEGER_RW || cur_tk.type == FLOAT_RW || cur_tk.type == STRING_RW || cur_tk.type == BOOLEAN_RW)
-      returned = cur_tk;
-    if (cur_tk.type == (token_type)'+' || cur_tk.type == (token_type)'-' || cur_tk.type == (token_type)'*' || cur_tk.type == (token_type)'/')
-      returned.type = cur_tk.type;
-    if (type != (token_type)'.')
-    {
-      prev_tk = cur_tk;
-      cur_tk = lexer_handle.scan();
-    }
     return true;
   }
   else
@@ -37,15 +24,10 @@ bool Parser::optional_scan_assume(token_type type, token &returned, bool definit
   {
     if (cur_tk.type == IDENTIFIER)
       returned = symbols->HashLookup(cur_tk, global_flag, definition);
-    if (cur_tk.type == INTEGER_VAL || cur_tk.type == FLOAT_VAL || cur_tk.type == STRING_VAL || cur_tk.type == TRUE_RW || cur_tk.type == FALSE_RW)
+    else
       returned = cur_tk;
-    if (cur_tk.type == INTEGER_RW || cur_tk.type == FLOAT_RW || cur_tk.type == STRING_RW || cur_tk.type == BOOLEAN_RW)
-      returned = cur_tk;
-    if (cur_tk.type == (token_type)'+' || cur_tk.type == (token_type)'-' || cur_tk.type == (token_type)'*' || cur_tk.type == (token_type)'/')
-      returned.type = cur_tk.type;
     if (type != (token_type)'.')
     {
-      prev_tk = cur_tk;
       cur_tk = lexer_handle.scan();
     }
     return true;
@@ -55,13 +37,8 @@ bool Parser::optional_scan_assume(token_type type, token &returned, bool definit
 
 bool Parser::scan_assume(token_type type)
 {
-  if (cur_tk.type == type)
+  if (optional_scan_assume(type))
   {
-    if (type != (token_type)'.')
-    {
-      prev_tk = cur_tk;
-      cur_tk = lexer_handle.scan();
-    }
     return true;
   }
   else
@@ -79,7 +56,6 @@ bool Parser::optional_scan_assume(token_type type)
   {
     if (type != (token_type)'.')
     {
-      prev_tk = cur_tk;
       cur_tk = lexer_handle.scan();
     }
     return true;
@@ -105,22 +81,22 @@ bool Parser::typeCheck(token &first, token &second, token_type op, std::stringst
 {
   if ((op == (token_type)'+') && (first.dataType == INTEGER_RW || first.type == INTEGER_VAL) && (second.dataType == INTEGER_RW || second.type == INTEGER_VAL))
   {
-    tmp << "add nsw i32 " << getLLVMform(first) << ", " << getLLVMform(second);
+    tmp << "add i32 " << getLLVMform(first) << ", " << getLLVMform(second);
     return true; // Integer result
   }
   if ((op == (token_type)'-') && (first.dataType == INTEGER_RW || first.type == INTEGER_VAL) && (second.dataType == INTEGER_RW || second.type == INTEGER_VAL))
   {
-    tmp << "sub nsw i32 " << getLLVMform(first) << ", " << getLLVMform(second);
+    tmp << "sub i32 " << getLLVMform(first) << ", " << getLLVMform(second);
     return true; // Integer result
   }
   if ((op == (token_type)'+') && (first.dataType == FLOAT_VAL || first.dataType == FLOAT_RW || first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == FLOAT_VAL || second.dataType == FLOAT_RW || second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
   {
-    tmp << "fadd nsw float " << getLLVMform(first) << ", " << getLLVMform(second);
+    tmp << "fadd float " << getLLVMform(first) << ", " << getLLVMform(second);
     return true; // Float result
   }
   if ((op == (token_type)'-') && (first.dataType == FLOAT_VAL || first.dataType == FLOAT_RW || first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == FLOAT_VAL || second.dataType == FLOAT_RW || second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
   {
-    tmp << "fsub nsw float " << getLLVMform(first) << ", " << getLLVMform(second);
+    tmp << "fsub float " << getLLVMform(first) << ", " << getLLVMform(second);
     return true; // Float result
   }
   return false;
@@ -128,24 +104,55 @@ bool Parser::typeCheck(token &first, token &second, token_type op, std::stringst
 
 bool Parser::typeCheck(token &first, token &second, token &result, token_type op, std::stringstream &tmp)
 {
+  std::string op1_Hash = getLLVMform(first), op2_Hash = getLLVMform(second);
+  if (first.pointer)
+  {
+    op1_Hash = "%lb_" + std::to_string(symbols->Hashgen++);
+    tmp << op1_Hash << " = load " << getLLVMType(first.dataType) << ", " << getLLVMType(first.dataType) << "* %lb_" << first.tokenHash << std::endl;
+  }
+  if (second.pointer)
+  {
+    op2_Hash = "%lb_" + std::to_string(symbols->Hashgen++);
+    tmp << op2_Hash << " = load " << getLLVMType(second.dataType) << ", " << getLLVMType(second.dataType) << "* %lb_" << second.tokenHash << std::endl;
+  }
   if ((op == (token_type)'+') && (first.dataType == INTEGER_RW || first.type == INTEGER_VAL) && (second.dataType == INTEGER_RW || second.type == INTEGER_VAL))
   {
-    tmp << "%lb_" << result.tokenHash << " = add nsw i32 " << getLLVMform(first) << ", " << getLLVMform(second) << std::endl;
+    tmp << "%lb_" << result.tokenHash << " = add i32 " << op1_Hash << ", " << op2_Hash << std::endl;
     return true; // Integer result
   }
   if ((op == (token_type)'-') && (first.dataType == INTEGER_RW || first.type == INTEGER_VAL) && (second.dataType == INTEGER_RW || second.type == INTEGER_VAL))
   {
-    tmp << "%lb_" << result.tokenHash << " = sub nsw i32 " << getLLVMform(first) << ", " << getLLVMform(second) << std::endl;
+    tmp << "%lb_" << result.tokenHash << " = sub i32 " << op1_Hash << ", " << op2_Hash << std::endl;
+    return true; // Integer result
+  }
+  if ((op == (token_type)'*') && (first.dataType == INTEGER_RW || first.type == INTEGER_VAL) && (second.dataType == INTEGER_RW || second.type == INTEGER_VAL))
+  {
+    tmp << "%lb_" << result.tokenHash << " = mul i32 " << op1_Hash << ", " << op2_Hash << std::endl;
+    return true; // Integer result
+  }
+  if ((op == (token_type)'/') && (first.dataType == INTEGER_RW || first.type == INTEGER_VAL) && (second.dataType == INTEGER_RW || second.type == INTEGER_VAL))
+  {
+    tmp << "%lb_" << result.tokenHash << " = div i32 " << op1_Hash << ", " << op2_Hash << std::endl;
     return true; // Integer result
   }
   if ((op == (token_type)'+') && (first.dataType == FLOAT_VAL || first.dataType == FLOAT_RW || first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == FLOAT_VAL || second.dataType == FLOAT_RW || second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
   {
-    tmp << "%lb_" << result.tokenHash << " = fadd nsw float " << getLLVMform(first) << ", " << getLLVMform(second) << std::endl;
+    tmp << "%lb_" << result.tokenHash << " = fadd float " << op1_Hash << ", " << op2_Hash << std::endl;
     return true; // Float result
   }
   if ((op == (token_type)'-') && (first.dataType == FLOAT_VAL || first.dataType == FLOAT_RW || first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == FLOAT_VAL || second.dataType == FLOAT_RW || second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
   {
-    tmp << "%lb_" << result.tokenHash << " = fsub nsw float " << getLLVMform(first) << ", " << getLLVMform(second) << std::endl;
+    tmp << "%lb_" << result.tokenHash << " = fsub float " << op1_Hash << ", " << op2_Hash << std::endl;
+    return true; // Float result
+  }
+  if ((op == (token_type)'+') && (first.dataType == FLOAT_VAL || first.dataType == FLOAT_RW || first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == FLOAT_VAL || second.dataType == FLOAT_RW || second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
+  {
+    tmp << "%lb_" << result.tokenHash << " = fmul float " << op1_Hash << ", " << op2_Hash << std::endl;
+    return true; // Float result
+  }
+  if ((op == (token_type)'-') && (first.dataType == FLOAT_VAL || first.dataType == FLOAT_RW || first.dataType == INTEGER_VAL || first.dataType == INTEGER_RW) && (second.dataType == FLOAT_VAL || second.dataType == FLOAT_RW || second.dataType == INTEGER_VAL || second.dataType == INTEGER_RW))
+  {
+    tmp << "%lb_" << result.tokenHash << " = fdic float " << op1_Hash << ", " << op2_Hash << std::endl;
     return true; // Float result
   }
   return false;
@@ -193,7 +200,10 @@ bool Parser::declaration()
     if (decl.global_var)
       output << "@" << decl.tokenMark.stringValue << " = global ";
     else
+    {
+      decl.pointer = true;
       output << "%lb_" << decl.tokenHash << " = alloca ";
+    }
     if (decl.size != -1)
       output << "[" << decl.size << " x " << getLLVMType(decl.dataType) << "]";
     else
@@ -215,7 +225,7 @@ bool Parser::declaration()
 
 bool Parser::procedure_declaration(token &proc) // Complete
 {
-  return (procedure_header(proc) && procedure_body()) ? true : resync(PROCEDURE_RW, true);
+  return (procedure_header(proc) && procedure_body(proc)) ? true : resync(PROCEDURE_RW, true);
 }
 
 bool Parser::procedure_header(token &proc)
@@ -234,7 +244,7 @@ bool Parser::procedure_header(token &proc)
       symbols->Completetoken(proc);         // To allow recursion
       for (auto i = proc.argType.begin(); i != proc.argType.end(); ++i)
       {
-        output << getLLVMType(i->dataType) << " %lb_" << i->tokenHash;
+        output << getLLVMType(i->dataType) << " %arg_lb_" << i->tokenHash;
         if (i != std::prev(proc.argType.end()))
           output << ",";
       }
@@ -269,9 +279,21 @@ bool Parser::parameter(token &param)
   return temp;
 }
 
-bool Parser::procedure_body()
+bool Parser::procedure_body(token &proc)
 {
   output << "{" << std::endl;
+  for (auto i : proc.argType)
+  {
+    output << "%lb_" << i.tokenHash << " = alloca ";
+    std::stringstream temp;
+    if (i.size != -1)
+      temp << "[" << i.size << " x " << getLLVMType(i.dataType) << "]";
+    else
+      temp << getLLVMType(i.dataType);
+    output << temp.str() << std::endl;
+    ;
+    output << "store " << temp.str() << " %arg_lb_" << i.tokenHash << ", " << temp.str() << "* %lb_" << i.tokenHash << std::endl;
+  }
   while (declaration())
     ;
   if (scan_assume(BEGIN_RW))
@@ -338,11 +360,11 @@ bool Parser::statement()
 
 bool Parser::if_statement()
 {
-  std::string result_tag; // Declare location to hold result of conditional expression
-  if (scan_assume((token_type)'(') && cond_expression(result_tag) && scan_assume((token_type)')') && scan_assume(THEN_RW))
+  token result; // Declare location to hold result of conditional expression
+  if (scan_assume((token_type)'(') && cond_expression(result) && scan_assume((token_type)')') && scan_assume(THEN_RW))
   {
     int if_label = label_gen++, else_no_label = label_gen++;
-    output << "br i1 " << result_tag << ", label %" << if_label << ", label %" << else_no_label << std::endl;
+    output << "br i1 %lb_" << result.tokenHash << ", label %" << if_label << ", label %" << else_no_label << std::endl;
     output << std::endl
            << "; <label>:" << if_label << std::endl;
     while (statement() && scan_assume((token_type)';'))
@@ -370,13 +392,23 @@ bool Parser::assignment_statement(token &dest)
       {
         output << exp.str();
         if (result.type == IDENTIFIER)
-          output << "store " << getLLVMType(result.dataType) << " %lb_" << result.tokenHash << ", " << getLLVMType(dest.dataType) << "* %lb_" << dest.tokenHash << std::endl;
+        {
+          std::string temp_Hash = std::to_string(symbols->Hashgen++);
+          if (result.pointer)
+            output << "%lb_" << temp_Hash << " = load " << getLLVMType(result.dataType) << ", " << getLLVMType(result.dataType) << "* %lb_" << result.tokenHash << std::endl;
+          else
+            output << "%lb_" << temp_Hash << " = load " << getLLVMType(result.dataType) << "*, %lb_" << result.tokenHash << std::endl;
+          output << "store " << getLLVMType(result.dataType) << " %lb_" << temp_Hash << ", " << getLLVMType(dest.dataType) << "* %lb_" << dest.tokenHash << std::endl;
+        }
         else if (result.type == INTEGER_VAL)
-          output << "store " << getLLVMType(result.type) << " " << result.tokenMark.intValue << ", " << getLLVMType(dest.dataType) << "* %lb_" << dest.tokenHash << std::endl;
+          output
+              << "store " << getLLVMType(result.type) << " " << result.tokenMark.intValue << ", " << getLLVMType(dest.dataType) << "* %lb_" << dest.tokenHash << std::endl;
         else if (result.type == FLOAT_VAL)
-          output << "store " << getLLVMType(result.type) << " " << result.tokenMark.doubleValue << ", " << getLLVMType(dest.dataType) << "* %lb_" << dest.tokenHash << std::endl;
+          output
+              << "store " << getLLVMType(result.type) << " " << result.tokenMark.doubleValue << ", " << getLLVMType(dest.dataType) << "* %lb_" << dest.tokenHash << std::endl;
         else if (result.type == STRING_VAL)
-          output << "store " << getLLVMType(result.type) << " " << result.tokenMark.stringValue << ", " << getLLVMType(dest.dataType) << "* %lb_" << dest.tokenHash << std::endl;
+          output
+              << "store " << getLLVMType(result.type) << " " << result.tokenMark.stringValue << ", " << getLLVMType(dest.dataType) << "* %lb_" << dest.tokenHash << std::endl;
         return true;
       }
     }
@@ -418,8 +450,18 @@ bool Parser::return_statement()
   token result;
   if (expression(result, exp))
   {
+    output << exp.str();
     if (result.type == IDENTIFIER)
-      output << "ret " << getLLVMType(result.dataType) << " %lb_" << result.tokenHash << std::endl;
+    {
+      if (result.pointer)
+      {
+        std::string temp_Hash = std::to_string(symbols->Hashgen++);
+        output << "%lb_" << temp_Hash << " = load " << getLLVMType(result.dataType) << ", " << getLLVMType(result.dataType) << "* %lb_" << result.tokenHash << std::endl;
+        output << "ret " << getLLVMType(result.dataType) << " %lb_" << temp_Hash << std::endl;
+      }
+      else
+        output << "ret " << getLLVMType(result.dataType) << " %lb_" << result.tokenHash << std::endl;
+    }
     else if (result.type == INTEGER_VAL)
       output << "ret " << getLLVMType(result.type) << " " << result.tokenMark.intValue << std::endl;
     else if (result.type == FLOAT_VAL)
@@ -467,14 +509,12 @@ bool Parser::argument_list(token &proc, std::stringstream &args) // Processes fo
   }
 }
 
-bool Parser::cond_expression(std::string &result_tag)
+bool Parser::cond_expression(token &result)
 {
-  result_tag = "%lb_" + std::to_string(symbols->Hashgen++);
   std::stringstream exp;
-  token result;
   if (expression(result, exp))
   {
-    output << result_tag << " = " << exp.str() << std::endl;
+    output << exp.str() << std::endl;
     return true;
   }
   else
@@ -537,16 +577,33 @@ bool Parser::arithOp(token &var, std::stringstream &exp, token_type prev_op)
 
 bool Parser::relation(token &var, std::stringstream &exp)
 {
-  token var_1, var_2;
+  token var_1, var_2, op;
   if (factor(var_1, exp))
   {
-    if (optional_scan_assume((token_type)'<') || optional_scan_assume(LESS_EQUAL) || optional_scan_assume(GREATER_EQUAL) || optional_scan_assume((token_type)'>') || optional_scan_assume(EQUALITY) || optional_scan_assume(NOT_EQUAL))
+    if (optional_scan_assume((token_type)'<', op) || optional_scan_assume(LESS_EQUAL, op) || optional_scan_assume(GREATER_EQUAL, op) || optional_scan_assume((token_type)'>', op) || optional_scan_assume(EQUALITY, op) || optional_scan_assume(NOT_EQUAL, op))
     {
       // evaluate resultant token values and types and return that
-      var.type = IDENTIFIER;
-      var.tokenHash = symbols->Hashgen++;
-      var.dataType = BOOLEAN_RW;
-      return relation(var_2, exp);
+      if (relation(var_2, exp))
+      {
+        var.type = IDENTIFIER;
+        var.tokenHash = symbols->Hashgen++;
+        var.dataType = BOOLEAN_RW;
+        std::string op1_Hash = getLLVMform(var_1), op2_Hash = getLLVMform(var_2);
+        if (var_1.pointer)
+        {
+          op1_Hash = "%lb_" + std::to_string(symbols->Hashgen++);
+          exp << op1_Hash << " = load " << getLLVMType(var_1.dataType) << ", " << getLLVMType(var_1.dataType) << "* %lb_" << var_1.tokenHash << std::endl;
+        }
+        if (var_2.pointer)
+        {
+          op2_Hash = "%lb_" + std::to_string(symbols->Hashgen++);
+          exp << op2_Hash << " = load " << getLLVMType(var_2.dataType) << ", " << getLLVMType(var_2.dataType) << "* %lb_" << var_2.tokenHash << std::endl;
+        }
+        exp << "%lb_" << var.tokenHash << " = icmp " << getLLVMop(op) << " " << getLLVMType(var_1.dataType) << " " << getLLVMvar_val(var_1) << ", " << getLLVMvar_val(var_2);
+        return true;
+      }
+      else
+        return false;
     }
     else
     {
