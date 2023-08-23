@@ -18,6 +18,7 @@ int main(int argc, char* argv[]) {
         std::ofstream outputFile(argv[2]);
 
         // Write the output to the file
+        outputFile << handle.global_decl.str();
         outputFile << handle.output.str();
 
         // Close the output file stream
