@@ -62,7 +62,7 @@ struct tokenMk
 
 struct basetoken
 {
-    bool global_var;
+    bool global_var=false;
     token_type type;
     tokenMk tokenMark;
     std::string tokenHash;

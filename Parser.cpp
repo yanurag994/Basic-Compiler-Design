@@ -129,7 +129,7 @@ bool Parser::declaration()
       if (decl.global_var)
         variable = new llvm::GlobalVariable(module, dataType, false, llvm::GlobalValue::ExternalLinkage, nullptr, decl.tokenMark.stringValue);
       else
-        variable = builder.CreateAlloca(builder.getInt32Ty(), nullptr, decl.tokenMark.stringValue);
+        variable = builder.CreateAlloca(dataType, nullptr, decl.tokenMark.stringValue);
       decl.llvm_value = variable;
       symbols->Completetoken(decl);
       return true;
@@ -172,7 +172,7 @@ bool Parser::procedure_header(token &proc)
         llvmargs.push_back(getLLVMType(argInfo.dataType));
       llvm::FunctionType *funcType = llvm::FunctionType::get(getLLVMType(proc.dataType), llvmargs, false);
       llvm::Function *Func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, proc.tokenMark.stringValue, &module);
-      llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "entry", Func);
+      llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "", Func);
       builder.SetInsertPoint(entryBlock);
       auto argIt = Func->arg_begin();
       for (auto &argInfo : proc.argType)
@@ -274,9 +274,9 @@ bool Parser::if_statement()
   if (scan_assume((token_type)'(') && cond_expression(result) && scan_assume((token_type)')') && scan_assume(THEN_RW))
   {
     llvm::Function *function = builder.GetInsertBlock()->getParent();
-    llvm::BasicBlock *thenBlock = llvm::BasicBlock::Create(context, "", function);
-    llvm::BasicBlock *elseBlock = llvm::BasicBlock::Create(context, "");
-    llvm::BasicBlock *mergeBlock = llvm::BasicBlock::Create(context, "");
+    llvm::BasicBlock *thenBlock = llvm::BasicBlock::Create(context, "if", function);
+    llvm::BasicBlock *elseBlock = llvm::BasicBlock::Create(context, "else");
+    llvm::BasicBlock *mergeBlock = llvm::BasicBlock::Create(context, "continue");
     builder.CreateCondBr(result, thenBlock, elseBlock);
     builder.SetInsertPoint(thenBlock);
     while (statement() && scan_assume((token_type)';'))
@@ -303,30 +303,25 @@ bool Parser::assignment_statement(token &dest)
     llvm::Value *LHS = dest.llvm_value;
     if (scan_assume(EQUAL_ASSIGN))
     {
-      std::stringstream exp;
       token result;
       llvm::Value *RHS = nullptr;
-
-      // Parse and generate LLVM IR for the expression on the right-hand side
-      if (expression(result, exp, RHS))
+      if (expression(result, RHS))
       {
-        // Generate LLVM IR for the assignment operation
         builder.CreateStore(RHS, LHS);
         return true;
       }
     }
   }
-  return false; // Return false on error
+  return false;
 }
 
 bool Parser::destination(token &var)
 {
   if (optional_scan_assume((token_type)'['))
   {
-    std::stringstream exp;
     token result;
     llvm::Value *size;
-    while (expression(result, exp, size))
+    while (expression(result,  size))
       ;
     if (scan_assume((token_type)']'))
       return true;
@@ -351,10 +346,9 @@ bool Parser::loop_statement()
 
 bool Parser::return_statement()
 {
-  std::stringstream exp;
   token result;
   llvm::Value *returnValue;
-  if (expression(result, exp, returnValue))
+  if (expression(result,  returnValue))
   {
     builder.CreateRet(returnValue);
     return true;
@@ -362,7 +356,7 @@ bool Parser::return_statement()
   return false;
 }
 
-bool Parser::procedure_call(token &proc, std::stringstream &call, llvm::Value *&returnValue)
+bool Parser::procedure_call(token &proc, llvm::Value *&returnValue)
 {
   llvm::Function *calleeFunc = module.getFunction(proc.tokenMark.stringValue);
   if (!calleeFunc)
@@ -388,9 +382,8 @@ bool Parser::procedure_call(token &proc, std::stringstream &call, llvm::Value *&
 bool Parser::argument_list(llvm::Function *calleeFunc, std::vector<llvm::Value *> &args)
 {
   token result;
-  std::stringstream argStream;
   llvm::Value *argValue;
-  if (expression(result, argStream, argValue))
+  if (expression(result, argValue))
   {
     args.push_back(argValue);
     if (optional_scan_assume((token_type)','))
@@ -404,21 +397,19 @@ bool Parser::argument_list(llvm::Function *calleeFunc, std::vector<llvm::Value *
 
 bool Parser::cond_expression(llvm::Value *&result)
 {
-  std::stringstream exp;
   token exp_result;
-  if (expression(exp_result, exp, result))
+  if (expression(exp_result,  result))
   {
-    output << exp.str() << std::endl;
     return true;
   }
   else
     return false;
 }
 
-bool Parser::expression(token &exp_result, std::stringstream &exp, llvm::Value *&value)
+bool Parser::expression(token &exp_result,  llvm::Value *&value)
 {
   optional_scan_assume((token_type)'!'); // Might be replaced if not is a keyword
-  if (arithOp(exp_result, exp, value))
+  if (arithOp(exp_result, value))
   {
     if (optional_scan_assume((token_type)'|') || optional_scan_assume((token_type)'&'))
     {
@@ -426,7 +417,7 @@ bool Parser::expression(token &exp_result, std::stringstream &exp, llvm::Value *
       bool isOr = exp_result.type == (token_type)'|';
 
       // Recursive call to handle the second part of the expression
-      if (expression(exp_result, exp, secondValue))
+      if (expression(exp_result, secondValue))
       {
         // Generate LLVM IR for logical OR or AND
         if (isOr)
@@ -452,13 +443,12 @@ bool Parser::expression(token &exp_result, std::stringstream &exp, llvm::Value *
   }
 }
 
-bool Parser::arithOp(token &var, std::stringstream &exp, llvm::Value *&value)
+bool Parser::arithOp(token &var, llvm::Value *&value)
 {
   token term_1, op;
   llvm::Value *value_1 = nullptr;
-
   // Parse the first term using relation
-  if (relation(term_1, exp, value_1))
+  if (relation(term_1, value_1))
   {
     // Handle optional arithmetic operations in a loop
     while (optional_scan_assume((token_type)'+', op) || optional_scan_assume((token_type)'-', op) ||
@@ -468,7 +458,7 @@ bool Parser::arithOp(token &var, std::stringstream &exp, llvm::Value *&value)
       llvm::Value *value_2 = nullptr;
 
       // Parse the next term using relation
-      if (relation(term_2, exp, value_2))
+      if (relation(term_2,  value_2))
       {
         // Generate LLVM IR for the arithmetic operation based on the operator
         llvm::Instruction::BinaryOps binaryOp = llvm::Instruction::BinaryOpsEnd;
@@ -516,16 +506,16 @@ bool Parser::arithOp(token &var, std::stringstream &exp, llvm::Value *&value)
   return false;
 }
 
-bool Parser::relation(token &var, std::stringstream &exp, llvm::Value *&value)
+bool Parser::relation(token &var, llvm::Value *&value)
 {
   token var_1, var_2, op;
   llvm::Value *value_1 = nullptr, *value_2 = nullptr;
-  if (factor(var_1, exp, value_1))
+  if (factor(var_1, value_1))
   {
     if (optional_scan_assume((token_type)'<', op) || optional_scan_assume(LESS_EQUAL, op) || optional_scan_assume(GREATER_EQUAL, op) ||
         optional_scan_assume((token_type)'>', op) || optional_scan_assume(EQUALITY, op) || optional_scan_assume(NOT_EQUAL, op))
     {
-      if (factor(var_2, exp, value_2))
+      if (factor(var_2, value_2))
       {
         // Generate LLVM IR for the comparison based on the operator
         llvm::CmpInst::Predicate predicate = llvm::CmpInst::ICMP_EQ; // Default to equal comparison
@@ -577,7 +567,7 @@ bool Parser::relation(token &var, std::stringstream &exp, llvm::Value *&value)
   }
 }
 
-bool Parser::factor(token &var, std::stringstream &exp, llvm::Value *&value)
+bool Parser::factor(token &var, llvm::Value *&value)
 {
 
   if (optional_scan_assume(TRUE_RW, var) || optional_scan_assume(FALSE_RW, var))
@@ -601,14 +591,14 @@ bool Parser::factor(token &var, std::stringstream &exp, llvm::Value *&value)
     }
     else if (optional_scan_assume(FLOAT_VAL, var))
     {
-      value = llvm::ConstantFP::get(context, llvm::APFloat(3.14));
+      value = llvm::ConstantFP::get(context, llvm::APFloat(var.tokenMark.doubleValue));
       if (isNegative)
         value = builder.CreateNeg(value, "negtmp");
       return true;
     }
     else if (optional_scan_assume(IDENTIFIER, var))
     {
-      if (optional_scan_assume((token_type)'(') && procedure_call(var, exp, value))
+      if (optional_scan_assume((token_type)'(') && procedure_call(var, value))
         return true;
       if (destination(var))
       {

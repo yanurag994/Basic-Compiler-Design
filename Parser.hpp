@@ -8,6 +8,7 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/TargetSelect.h"
 #include <llvm/IR/GlobalVariable.h>
+#include <llvm/Support/raw_ostream.h>
 
 class TokenNotFoundError : public std::runtime_error
 {
@@ -41,6 +42,32 @@ public:
     Symbols() : current(new Scope(std::map<std::string, token>(), nullptr))
     {
         global = current;
+        token newTokenGetBool(IDENTIFIER, tokenMk("getbool"), "1000", BOOLEAN_RW);
+        global->symbol_table["getbool"] = newTokenGetBool;
+
+        token newTokenGetInteger(IDENTIFIER, tokenMk("getinteger"), "1001", INTEGER_RW);
+        global->symbol_table["getinteger"] = newTokenGetInteger;
+
+        token newTokenGetFloat(IDENTIFIER, tokenMk("getfloat"), "1002", FLOAT_RW);
+        global->symbol_table["getfloat"] = newTokenGetFloat;
+
+        token newTokenGetString(IDENTIFIER, tokenMk("getstring"), "1003", STRING_RW);
+        global->symbol_table["getstring"] = newTokenGetString;
+
+        token newTokenPutBool(IDENTIFIER, tokenMk("putbool"), "1004", BOOLEAN_RW, -1, {token(IDENTIFIER, tokenMk("internal_bool"), "1050", BOOLEAN_RW)});
+        global->symbol_table["putbool"] = newTokenPutBool;
+
+        token newTokenPutInteger(IDENTIFIER, tokenMk("putinteger"), "1005", BOOLEAN_RW, -1, {token(IDENTIFIER, tokenMk("internal_int"), "1051", INTEGER_RW)});
+        global->symbol_table["putinteger"] = newTokenPutInteger;
+
+        token newTokenPutFloat(IDENTIFIER, tokenMk("putfloat"), "1006", BOOLEAN_RW, -1, {token(IDENTIFIER, tokenMk("internal_float"), "1052", FLOAT_RW)});
+        global->symbol_table["putfloat"] = newTokenPutFloat;
+
+        token newTokenPutString(IDENTIFIER, tokenMk("putstring"), "1007", BOOLEAN_RW, -1, {token(IDENTIFIER, tokenMk("internal_double"), "1053", STRING_RW)});
+        global->symbol_table["putstring"] = newTokenPutString;
+
+        token newTokenSqrt(IDENTIFIER, tokenMk("sqrt"), "1008", FLOAT_RW, -1, {token(IDENTIFIER, tokenMk("internal_sqrt"), "1054", INTEGER_RW)});
+        global->symbol_table["sqrt"] = newTokenSqrt;
     }
     void enterScope() { current = new Scope(std::map<std::string, token>(), current); };
     void enterSoftScope() { current = new Scope(current->symbol_table, current); };
@@ -132,7 +159,7 @@ private:
     bool scan_assume(token_type, token &, bool);
     bool optional_scan_assume(token_type, token &, bool);
     bool resync(token_type, bool);
-    bool typeCheck(token &, token &, token &, token_type, std::stringstream &);
+    bool typeCheck(token &, token &, token &, token_type);
     bool program_header();
     bool program_body();
     bool declaration();
@@ -144,17 +171,17 @@ private:
     bool variable_declaration(token &);
     bool type_mark(token_type &);
     bool statement();
-    bool procedure_call(token &, std::stringstream &, llvm::Value *&);
+    bool procedure_call(token &, llvm::Value *&);
     bool assignment_statement(token &);
     bool destination(token &);
     bool if_statement();
     bool loop_statement();
     bool return_statement();
-    bool expression(token &, std::stringstream &, llvm::Value *&);
+    bool expression(token &, llvm::Value *&);
     bool cond_expression(llvm::Value *&);
-    bool arithOp(token &, std::stringstream &, llvm::Value *&);
-    bool relation(token &, std::stringstream &, llvm::Value *&);
-    bool factor(token &, std::stringstream &, llvm::Value *&);
+    bool arithOp(token &, llvm::Value *&);
+    bool relation(token &, llvm::Value *&);
+    bool factor(token &, llvm::Value *&);
     bool argument_list(llvm::Function *calleeFunc, std::vector<llvm::Value *> &args);
     llvm::Type *getLLVMType(token_type type);
 
@@ -174,26 +201,5 @@ public:
         buffer.push_back(std::move(globalstream));
         symbols = new Symbols();
         cur_tk = lexer_handle.scan();
-
-        // Define putInteger function
-        llvm::FunctionType *putIntegerType = llvm::FunctionType::get(builder.getInt32Ty(), {builder.getInt32Ty()}, false);
-        llvm::Function *putIntegerFunc = llvm::Function::Create(putIntegerType, llvm::Function::ExternalLinkage, "putInteger", &module);
-        llvm::BasicBlock *putIntegerEntry = llvm::BasicBlock::Create(context, "entry", putIntegerFunc);
-        builder.SetInsertPoint(putIntegerEntry);
-
-        // Implementation of putInteger function
-        llvm::Value *putIntegerArg = putIntegerFunc->arg_begin();
-        builder.CreateCall(llvm::Intrinsic::getDeclaration(&module, llvm::Intrinsic::donothing), {}); // Placeholder implementation
-        builder.CreateRet(builder.getInt32(0));
-
-        // Define getInteger function
-        llvm::FunctionType *getIntegerType = llvm::FunctionType::get(builder.getInt32Ty(), false);
-        llvm::Function *getIntegerFunc = llvm::Function::Create(getIntegerType, llvm::Function::ExternalLinkage, "getInteger", &module);
-        llvm::BasicBlock *getIntegerEntry = llvm::BasicBlock::Create(context, "entry", getIntegerFunc);
-        builder.SetInsertPoint(getIntegerEntry);
-
-        // Implementation of getInteger function
-        builder.CreateCall(llvm::Intrinsic::getDeclaration(&module, llvm::Intrinsic::donothing), {}); // Placeholder implementation
-        builder.CreateRet(builder.getInt32(0));
     };
 };

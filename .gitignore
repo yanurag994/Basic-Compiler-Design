@@ -12,3 +12,5 @@ cmake_install.cmake
 *.ll
 
 Compiler
+
+.vscode/*
