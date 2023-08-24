@@ -6,6 +6,7 @@
 #include <map>
 #include <vector>
 #include <cstring>
+#include <llvm/IR/Value.h>
 
 enum token_type
 {
@@ -61,13 +62,13 @@ struct tokenMk
 
 struct basetoken
 {
-    bool global_var = false;
+    bool global_var;
     token_type type;
     tokenMk tokenMark;
     std::string tokenHash;
     token_type dataType; // Holds datatype for variable and return type for procedure
+    llvm::Value *llvm_value = nullptr;
     int size = -1;
-    bool pointer = false;
     basetoken() : tokenHash(), type(UNKNOWN) {}
     basetoken(token_type type, const tokenMk &tokenMark, std::string tokenHash, token_type dataType, int size = -1)
         : type(type), tokenMark(tokenMark), tokenHash(tokenHash), dataType(dataType), size(size) {}
@@ -76,7 +77,6 @@ struct basetoken
 struct token : basetoken
 {
     std::vector<token> argType; // Populate only if a procedure
-    bool procedure = false;
     token() : argType() {}
     token(token_type type, const tokenMk &tokenMark, std::string tokenHash, token_type dataType, int size = -1, const std::vector<token> &argType = {})
         : basetoken(type, tokenMark, tokenHash, dataType, size), argType(argType) {}

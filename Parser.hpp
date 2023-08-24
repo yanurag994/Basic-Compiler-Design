@@ -3,6 +3,11 @@
 #include <sstream>
 #include <cstring>
 #include <iostream>
+#include "llvm/IR/Module.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Verifier.h"
+#include "llvm/Support/TargetSelect.h"
+#include <llvm/IR/GlobalVariable.h>
 
 class TokenNotFoundError : public std::runtime_error
 {
@@ -115,6 +120,9 @@ public:
 class Parser
 {
 private:
+    llvm::LLVMContext context;
+    llvm::Module module;
+    llvm::IRBuilder<> builder;
     Lexer lexer_handle;
     token cur_tk;
     token prev_tk;
@@ -136,18 +144,19 @@ private:
     bool variable_declaration(token &);
     bool type_mark(token_type &);
     bool statement();
-    bool procedure_call(token &, std::stringstream &);
+    bool procedure_call(token &, std::stringstream &, llvm::Value *&);
     bool assignment_statement(token &);
     bool destination(token &);
     bool if_statement();
     bool loop_statement();
     bool return_statement();
-    bool expression(token &, std::stringstream &);
-    bool cond_expression(token &);
-    bool arithOp(token &, std::stringstream &, token_type = UNKNOWN);
-    bool relation(token &, std::stringstream &);
-    bool factor(token &, std::stringstream &);
-    bool argument_list(token &, std::stringstream &, std::stringstream &);
+    bool expression(token &, std::stringstream &, llvm::Value *&);
+    bool cond_expression(llvm::Value *&);
+    bool arithOp(token &, std::stringstream &, llvm::Value *&);
+    bool relation(token &, std::stringstream &, llvm::Value *&);
+    bool factor(token &, std::stringstream &, llvm::Value *&);
+    bool argument_list(llvm::Function *calleeFunc, std::vector<llvm::Value *> &args);
+    llvm::Type *getLLVMType(token_type type);
 
 public:
     std::vector<std::stringstream> buffer;
@@ -156,11 +165,35 @@ public:
     bool program();
     Symbols *symbols;
     int label_gen = 10;
-    Parser(std::string filename) : lexer_handle(filename)
+    Parser(const std::string &inputFileName) : lexer_handle(inputFileName), builder(context), module(inputFileName, context)
     {
+        llvm::InitializeNativeTarget();
+        llvm::InitializeNativeTargetAsmPrinter();
+        // Initialize LLVM module
         auto globalstream = std::stringstream();
         buffer.push_back(std::move(globalstream));
         symbols = new Symbols();
         cur_tk = lexer_handle.scan();
-    }
+
+        // Define putInteger function
+        llvm::FunctionType *putIntegerType = llvm::FunctionType::get(builder.getInt32Ty(), {builder.getInt32Ty()}, false);
+        llvm::Function *putIntegerFunc = llvm::Function::Create(putIntegerType, llvm::Function::ExternalLinkage, "putInteger", &module);
+        llvm::BasicBlock *putIntegerEntry = llvm::BasicBlock::Create(context, "entry", putIntegerFunc);
+        builder.SetInsertPoint(putIntegerEntry);
+
+        // Implementation of putInteger function
+        llvm::Value *putIntegerArg = putIntegerFunc->arg_begin();
+        builder.CreateCall(llvm::Intrinsic::getDeclaration(&module, llvm::Intrinsic::donothing), {}); // Placeholder implementation
+        builder.CreateRet(builder.getInt32(0));
+
+        // Define getInteger function
+        llvm::FunctionType *getIntegerType = llvm::FunctionType::get(builder.getInt32Ty(), false);
+        llvm::Function *getIntegerFunc = llvm::Function::Create(getIntegerType, llvm::Function::ExternalLinkage, "getInteger", &module);
+        llvm::BasicBlock *getIntegerEntry = llvm::BasicBlock::Create(context, "entry", getIntegerFunc);
+        builder.SetInsertPoint(getIntegerEntry);
+
+        // Implementation of getInteger function
+        builder.CreateCall(llvm::Intrinsic::getDeclaration(&module, llvm::Intrinsic::donothing), {}); // Placeholder implementation
+        builder.CreateRet(builder.getInt32(0));
+    };
 };
