@@ -36,41 +36,6 @@ public:
     Symbols() : current(new Scope(std::map<std::string, token>(), nullptr))
     {
         global = current;
-        token newTokenGetBool(IDENTIFIER, tokenMk("getbool"), "%l_"+std::to_string(1000), BOOLEAN_RW);
-        newTokenGetBool.procedure=true;
-        global->symbol_table["getbool"] = newTokenGetBool;
-
-        token newTokenGetInteger(IDENTIFIER, tokenMk("getinteger"), "%l_"+std::to_string(1001), INTEGER_RW);
-        newTokenGetInteger.procedure=true;
-        global->symbol_table["getinteger"] = newTokenGetInteger;
-
-        token newTokenGetFloat(IDENTIFIER, tokenMk("getfloat"), "%l_"+std::to_string(1002), FLOAT_RW);
-        newTokenGetFloat.procedure=true;
-        global->symbol_table["getfloat"] = newTokenGetFloat;
-
-        token newTokenGetString(IDENTIFIER, tokenMk("getstring"), "%l_"+std::to_string(1003), STRING_RW);
-        newTokenGetString.procedure=true;
-        global->symbol_table["getstring"] = newTokenGetString;
-
-        token newTokenPutBool(IDENTIFIER, tokenMk("putbool"), "%l_"+std::to_string(1004), BOOLEAN_RW, -1, {token(IDENTIFIER, tokenMk("internal_bool"), std::to_string(1050), BOOLEAN_RW)});
-        newTokenPutBool.procedure=true;
-        global->symbol_table["putbool"] = newTokenPutBool;
-
-        token newTokenPutInteger(IDENTIFIER, tokenMk("putinteger"), "%l_"+std::to_string(1005), BOOLEAN_RW, -1, {token(IDENTIFIER, tokenMk("internal_int"), std::to_string(1051), INTEGER_RW)});
-        newTokenPutInteger.procedure=true;
-        global->symbol_table["putinteger"] = newTokenPutInteger;
-
-        token newTokenPutFloat(IDENTIFIER, tokenMk("putfloat"), "%l_"+std::to_string(1006), BOOLEAN_RW, -1, {token(IDENTIFIER, tokenMk("internal_float"), std::to_string(1052), FLOAT_RW)});
-        newTokenPutFloat.procedure=true;
-        global->symbol_table["putfloat"] = newTokenPutFloat;
-
-        token newTokenPutString(IDENTIFIER, tokenMk("putstring"), "%l_"+std::to_string(1007), BOOLEAN_RW, -1, {token(IDENTIFIER, tokenMk("internal_double"), std::to_string(1053), STRING_RW)});
-        newTokenPutString.procedure=true;
-        global->symbol_table["putstring"] = newTokenPutString;
-
-        token newTokenSqrt(IDENTIFIER, tokenMk("sqrt"), "%l_"+std::to_string(1008), FLOAT_RW, -1, {token(IDENTIFIER, tokenMk("internal_sqrt"), std::to_string(1054), INTEGER_RW)});
-        newTokenSqrt.procedure=true;
-        global->symbol_table["sqrt"] = newTokenSqrt;
     }
     void enterScope() { current = new Scope(std::map<std::string, token>(), current); };
     void enterSoftScope() { current = new Scope(current->symbol_table, current); };
@@ -182,7 +147,7 @@ private:
     bool arithOp(token &, std::stringstream &, token_type = UNKNOWN);
     bool relation(token &, std::stringstream &);
     bool factor(token &, std::stringstream &);
-    bool argument_list(token &, std::stringstream &);
+    bool argument_list(token &, std::stringstream &, std::stringstream &);
 
 public:
     std::vector<std::stringstream> buffer;
@@ -199,70 +164,3 @@ public:
         cur_tk = lexer_handle.scan();
     }
 };
-
-inline std::string getLLVMType(token_type dataType = UNKNOWN)
-{
-    if (dataType == INTEGER_RW || dataType == INTEGER_VAL)
-        return "i32";
-    if (dataType == FLOAT_RW || dataType == FLOAT_VAL)
-        return "float";
-    if (dataType == STRING_RW || dataType == INTEGER_VAL)
-        return "i32";
-    if (dataType == BOOLEAN_RW)
-        return "i8";
-    return "unknown";
-}
-
-inline std::string getLLVMIntitializer(token_type dataType = UNKNOWN)
-{
-    if (dataType == INTEGER_RW)
-        return "0";
-    if (dataType == FLOAT_RW)
-        return "0.000000e+00";
-    if (dataType == STRING_RW)
-        return "i32";
-    if (dataType == BOOLEAN_RW)
-        return "0";
-    return "unknown";
-}
-
-inline std::string getLLVMform(token &tk)
-{
-    if (tk.type == IDENTIFIER)
-        return tk.tokenHash;
-    if (tk.type == INTEGER_VAL)
-        return std::to_string(tk.tokenMark.intValue);
-    return "unknown";
-}
-
-inline std::string getLLVMvar_val(token &tk)
-{
-    if (tk.type == IDENTIFIER)
-        return tk.tokenHash;
-    if (tk.type == INTEGER_VAL)
-        return std::to_string(tk.tokenMark.intValue);
-    if (tk.type == FLOAT_VAL)
-        return std::to_string(tk.tokenMark.doubleValue);
-    if (tk.type == BOOLEAN_RW)
-        return std::to_string(tk.tokenMark.intValue);
-    if (tk.type == STRING_VAL)
-        return tk.tokenMark.stringValue;
-    return "unknown";
-}
-
-inline std::string getLLVMop(token &tk)
-{
-    if (tk.type == EQUALITY)
-        return "eq";
-    if (tk.type == (token_type)'<')
-        return "slt";
-    if (tk.type == LESS_EQUAL)
-        return "sle";
-    if (tk.type == (token_type)'>')
-        return "sgt";
-    if (tk.type == GREATER_EQUAL)
-        return "sge";
-    if (tk.type == NOT_EQUAL)
-        return "ne";
-    return "unknown";
-}
