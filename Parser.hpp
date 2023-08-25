@@ -185,11 +185,18 @@ private:
     bool relation(token &, llvm::Value *&);
     bool factor(token &, llvm::Value *&);
     bool argument_list(llvm::Function *calleeFunc, std::vector<llvm::Value *> &args);
+    void printf();
     void putinteger();
     void putfloat();
     void putstring();
     void putbool();
-    void printf();
+    void scanf();
+    llvm::Value *getinteger();
+    llvm::Value *getfloat();
+    llvm::Value *getstring();
+    llvm::Value *getbool();
+    llvm::Value *sqrt();
+    
 public:
     std::stringstream global_decl;
     bool program();
@@ -204,10 +211,15 @@ public:
         llvm::InitializeNativeTarget();
         llvm::InitializeNativeTargetAsmPrinter();
         printf();
+        scanf();
         putinteger();
         putfloat();
         putstring();
         putbool();
+        getinteger();
+        getfloat();
+        getbool();
+        sqrt();
     };
     void execute(){};
 };

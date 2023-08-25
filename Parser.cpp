@@ -383,7 +383,10 @@ bool Parser::procedure_call(token &proc, llvm::Value *&returnValue)
   }
   std::vector<llvm::Value *> arguments;
   if (optional_scan_assume((token_type)')'))
+  {
+    returnValue = builder.CreateCall(calleeFunc, arguments);
     return true;
+  }
   if (argument_list(calleeFunc, arguments))
   {
     if (scan_assume((token_type)')'))
@@ -616,7 +619,6 @@ bool Parser::factor(token &var, llvm::Value *&value)
     else if (optional_scan_assume(FLOAT_VAL, var))
     {
       value = llvm::ConstantFP::get(builder.getFloatTy(), (float)var.tokenMark.doubleValue);
-      std::cout << var.tokenMark.doubleValue;
       if (isNegative)
         value = builder.CreateNeg(value, "negtmp");
       return true;
@@ -657,6 +659,12 @@ void Parser::printf()
 {
   llvm::FunctionType *printfType = llvm::FunctionType::get(llvm::Type::getInt32Ty(context), llvm::Type::getInt8PtrTy(context), true);
   llvm::Function *printfFunc = llvm::Function::Create(printfType, llvm::Function::ExternalLinkage, "printf", &module);
+}
+
+void Parser::scanf()
+{
+  llvm::FunctionType *scanfType = llvm::FunctionType::get(llvm::Type::getInt32Ty(context), llvm::Type::getInt8PtrTy(context), true);
+  llvm::Function *scanfFunc = llvm::Function::Create(scanfType, llvm::Function::ExternalLinkage, "scanf", &module);
 }
 
 void Parser::putinteger()
@@ -756,3 +764,142 @@ void Parser::putstring()
   builder.CreateCall(printfFunc, printfArgs);
   builder.CreateRet(builder.getInt1(1));
 }
+
+llvm::Value *Parser::getinteger()
+{
+  llvm::Function *scanfFunc = module.getFunction("scanf");
+
+  // Define the getinteger function
+  llvm::FunctionType *getintegerType = llvm::FunctionType::get(llvm::Type::getInt32Ty(context), false);
+  llvm::Function *getintegerFunc = llvm::Function::Create(getintegerType, llvm::Function::ExternalLinkage, "getinteger", &module);
+  llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "", getintegerFunc);
+  builder.SetInsertPoint(entryBlock);
+
+  // Create format string constant for scanf
+  llvm::Constant *formatStr = llvm::ConstantDataArray::getString(context, "%d");
+  llvm::GlobalVariable *formatVar = new llvm::GlobalVariable(module, formatStr->getType(), true, llvm::GlobalValue::PrivateLinkage, formatStr);
+  llvm::Value *zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+  llvm::Value *indices[] = {zero, zero};
+  llvm::Constant *formatPtr = llvm::ConstantExpr::getGetElementPtr(formatStr->getType(), formatVar, indices);
+
+  // Allocate memory for the integer input
+  llvm::Value *alloca = builder.CreateAlloca(llvm::Type::getInt32Ty(context));
+
+  // Call scanf function
+  llvm::Value *scanfArgs[] = {formatPtr, alloca};
+  builder.CreateCall(scanfFunc, scanfArgs);
+
+  // Load and return the parsed integer
+  llvm::Value *intValue = builder.CreateLoad(builder.getInt32Ty(), alloca);
+  builder.CreateRet(intValue);
+  return getintegerFunc;
+}
+
+llvm::Value *Parser::getfloat()
+{
+  llvm::Function *scanfFunc = module.getFunction("scanf");
+
+  // Define the getfloat function
+  llvm::FunctionType *getfloatType = llvm::FunctionType::get(llvm::Type::getFloatTy(context), false);
+  llvm::Function *getfloatFunc = llvm::Function::Create(getfloatType, llvm::Function::ExternalLinkage, "getfloat", &module);
+  llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "", getfloatFunc);
+  builder.SetInsertPoint(entryBlock);
+
+  // Create format string constant for scanf
+  llvm::Constant *formatStr = llvm::ConstantDataArray::getString(context, "%f");
+  llvm::GlobalVariable *formatVar = new llvm::GlobalVariable(module, formatStr->getType(), true, llvm::GlobalValue::PrivateLinkage, formatStr);
+  llvm::Value *zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+  llvm::Value *indices[] = {zero, zero};
+  llvm::Constant *formatPtr = llvm::ConstantExpr::getGetElementPtr(formatStr->getType(), formatVar, indices);
+
+  // Allocate memory for the float input
+  llvm::Value *alloca = builder.CreateAlloca(llvm::Type::getFloatTy(context));
+
+  // Call scanf function
+  llvm::Value *scanfArgs[] = {formatPtr, alloca};
+  builder.CreateCall(scanfFunc, scanfArgs);
+
+  // Load and return the parsed float
+  llvm::Value *floatValue = builder.CreateLoad(builder.getFloatTy(), alloca);
+  builder.CreateRet(floatValue);
+  return getfloatFunc;
+}
+
+llvm::Value *Parser::getbool()
+{
+  llvm::Function *scanfFunc = module.getFunction("scanf");
+
+  // Define the getbool function
+  llvm::FunctionType *getboolType = llvm::FunctionType::get(llvm::Type::getInt1Ty(context), false);
+  llvm::Function *getboolFunc = llvm::Function::Create(getboolType, llvm::Function::ExternalLinkage, "getbool", &module);
+  llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "", getboolFunc);
+  builder.SetInsertPoint(entryBlock);
+
+  // Create format string constant for scanf
+  llvm::Constant *formatStr = llvm::ConstantDataArray::getString(context, "%d");
+  llvm::GlobalVariable *formatVar = new llvm::GlobalVariable(module, formatStr->getType(), true, llvm::GlobalValue::PrivateLinkage, formatStr);
+  llvm::Value *zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+  llvm::Value *indices[] = {zero, zero};
+  llvm::Constant *formatPtr = llvm::ConstantExpr::getGetElementPtr(formatStr->getType(), formatVar, indices);
+
+  // Allocate memory for the bool input
+  llvm::Value *alloca = builder.CreateAlloca(llvm::Type::getInt1Ty(context));
+
+  // Call scanf function
+  llvm::Value *scanfArgs[] = {formatPtr, alloca};
+  builder.CreateCall(scanfFunc, scanfArgs);
+
+  // Load and return the parsed bool
+  llvm::Value *boolValue = builder.CreateLoad(builder.getInt1Ty(), alloca);
+  builder.CreateRet(boolValue);
+  return getboolFunc;
+}
+
+llvm::Value *Parser::sqrt()
+{
+  llvm::FunctionType *sqrtFuncType = llvm::FunctionType::get(llvm::Type::getFloatTy(context), llvm::Type::getInt32Ty(context), false);
+  llvm::Function *sqrtFunc = llvm::Function::Create(sqrtFuncType, llvm::Function::ExternalLinkage, "sqrt", &module);
+
+  llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "", sqrtFunc);
+  builder.SetInsertPoint(entryBlock);
+
+  // Get the argument value
+  llvm::Value *value = sqrtFunc->args().begin();
+  llvm::Value *floatValue = builder.CreateSIToFP(value, builder.getFloatTy(), "");
+
+  // Call the sqrt intrinsic function
+  llvm::Function *sqrtIntrinsic = llvm::Intrinsic::getDeclaration(&module, llvm::Intrinsic::sqrt, llvm::Type::getFloatTy(context));
+  llvm::Value *sqrtResult = builder.CreateCall(sqrtIntrinsic, floatValue, "");
+
+  builder.CreateRet(sqrtResult);
+  return sqrtFunc;
+}
+/*llvm::Value *Parser::getstring()
+{
+  llvm::Function *scanfFunc = module.getFunction("scanf");
+
+  // Define the getstring function
+  llvm::FunctionType *getstringType = llvm::FunctionType::get(llvm::Type::getInt8PtrTy(context), false);
+  llvm::Function *getstringFunc = llvm::Function::Create(getstringType, llvm::Function::ExternalLinkage, "getstring", &module);
+  llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "", getstringFunc);
+  builder.SetInsertPoint(entryBlock);
+
+  // Create format string constant for scanf
+  llvm::Constant *formatStr = llvm::ConstantDataArray::getString(context, "%s");
+  llvm::GlobalVariable *formatVar = new llvm::GlobalVariable(module, formatStr->getType(), true, llvm::GlobalValue::PrivateLinkage, formatStr);
+  llvm::Value *zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+  llvm::Value *indices[] = {zero, zero};
+  llvm::Constant *formatPtr = llvm::ConstantExpr::getGetElementPtr(formatStr->getType(), formatVar, indices);
+
+  // Allocate memory for the string input
+  llvm::Value *alloca = builder.CreateAlloca(llvm::Type::getInt8PtrTy(context));
+
+  // Call scanf function
+  llvm::Value *scanfArgs[] = {formatPtr, alloca};
+  builder.CreateCall(scanfFunc, scanfArgs);
+
+  // Load and return the parsed string
+  llvm::Value *stringValue = builder.CreateLoad(alloca);
+  builder.CreateRet(stringValue);
+  return getstringFunc;
+} */
