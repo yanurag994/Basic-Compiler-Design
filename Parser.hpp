@@ -150,10 +150,12 @@ private:
     llvm::LLVMContext context;
     llvm::Module module;
     llvm::IRBuilder<> builder;
+    llvm::Type *getLLVMType(token_type type);
     Lexer lexer_handle;
     token cur_tk;
     token prev_tk;
     bool global_flag = false;
+    bool returned_flag_for_if = false;
     bool scan_assume(token_type);
     bool optional_scan_assume(token_type);
     bool scan_assume(token_type, token &, bool);
@@ -186,20 +188,14 @@ private:
     void putinteger();
     void putfloat();
     void putstring();
-    llvm::Type *getLLVMType(token_type type);
-    bool returned_flag_for_if = false;
-
+    void putbool();
+    void printf();
 public:
-    std::vector<std::stringstream> buffer;
-    std::stringstream output;
     std::stringstream global_decl;
     bool program();
     Symbols *symbols;
-    int label_gen = 10;
     Parser(const std::string &inputFileName) : lexer_handle(inputFileName), builder(context), module(inputFileName, context)
     {
-        auto globalstream = std::stringstream();
-        buffer.push_back(std::move(globalstream));
         symbols = new Symbols();
         cur_tk = lexer_handle.scan();
     };
@@ -207,7 +203,11 @@ public:
     {
         llvm::InitializeNativeTarget();
         llvm::InitializeNativeTargetAsmPrinter();
+        printf();
         putinteger();
+        putfloat();
+        putstring();
+        putbool();
     };
     void execute(){};
 };
