@@ -94,7 +94,7 @@ bool Parser::program_body() // Complete
   if (scan_assume(BEGIN_RW))
   {
     llvm::FunctionType *funcType = llvm::FunctionType::get(builder.getVoidTy(), false);
-    llvm::Function *mainFunc = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "main", &module);
+    mainFunc = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "main", &module);
     mainFunc->setDSOLocal(true);
     llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "entry", mainFunc);
     builder.SetInsertPoint(entryBlock);
@@ -103,13 +103,6 @@ bool Parser::program_body() // Complete
     if (scan_assume(END_RW) && scan_assume(PROGRAM_RW))
     {
       builder.CreateRetVoid();
-      llvm::verifyFunction(*mainFunc);
-      std::error_code ec;
-      llvm::raw_fd_ostream dest("-", ec);
-
-      // Verify the module and print errors to both console and file
-      bool hasErrors = llvm::verifyModule(module, &dest);
-      module.print(dest, nullptr);
       return true;
     }
     else
@@ -843,15 +836,18 @@ llvm::Value *Parser::getbool()
   llvm::Constant *formatPtr = llvm::ConstantExpr::getGetElementPtr(formatStr->getType(), formatVar, indices);
 
   // Allocate memory for the bool input
-  llvm::Value *alloca = builder.CreateAlloca(llvm::Type::getInt1Ty(context));
+  llvm::Value *alloca = builder.CreateAlloca(llvm::Type::getInt32Ty(context));
+  // llvm::Value *alloca_2 = builder.getInt32(0);
 
   // Call scanf function
   llvm::Value *scanfArgs[] = {formatPtr, alloca};
   builder.CreateCall(scanfFunc, scanfArgs);
+  llvm::Value *scanf_result = builder.CreateLoad(builder.getInt32Ty(), alloca);
 
   // Load and return the parsed bool
-  llvm::Value *boolValue = builder.CreateLoad(builder.getInt1Ty(), alloca);
-  builder.CreateRet(boolValue);
+  // llvm::Value *result=builder.CreateICmp(llvm::CmpInst::ICMP_NE, alloca, alloca_2, "");
+  llvm::Value *result = builder.CreateICmpNE(scanf_result, builder.getInt32(0), "");
+  builder.CreateRet(result);
   return getboolFunc;
 }
 
@@ -874,6 +870,7 @@ llvm::Value *Parser::sqrt()
   builder.CreateRet(sqrtResult);
   return sqrtFunc;
 }
+
 /*llvm::Value *Parser::getstring()
 {
   llvm::Function *scanfFunc = module.getFunction("scanf");
@@ -894,12 +891,16 @@ llvm::Value *Parser::sqrt()
   // Allocate memory for the string input
   llvm::Value *alloca = builder.CreateAlloca(llvm::Type::getInt8PtrTy(context));
 
+  llvm::Type *stringType = llvm::Type::getInt8PtrTy(context);
+  llvm::Constant *stringLiteral = llvm::ConstantDataArray::getString(context,"");
+  llvm::Variable *stringVar = new llvm::Variable(module, stringLiteral->getType(), true, llvm::GlobalValue::PrivateLinkage, stringLiteral);
+
   // Call scanf function
   llvm::Value *scanfArgs[] = {formatPtr, alloca};
   builder.CreateCall(scanfFunc, scanfArgs);
 
   // Load and return the parsed string
-  llvm::Value *stringValue = builder.CreateLoad(alloca);
+  llvm::Value *stringValue = builder.CreateLoad(llvm::Type::getInt8PtrTy(context), alloca);
   builder.CreateRet(stringValue);
   return getstringFunc;
-} */
+}*/

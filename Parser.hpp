@@ -9,6 +9,9 @@
 #include "llvm/Support/TargetSelect.h"
 #include <llvm/IR/GlobalVariable.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/ExecutionEngine/ExecutionEngine.h>
+#include <llvm/ExecutionEngine/GenericValue.h>
+#include <llvm/ExecutionEngine/MCJIT.h>
 
 class TokenNotFoundError : public std::runtime_error
 {
@@ -196,16 +199,21 @@ private:
     llvm::Value *getstring();
     llvm::Value *getbool();
     llvm::Value *sqrt();
-    
+    llvm::Function *mainFunc;
+    std::error_code ec;
+    llvm::raw_fd_ostream *dest;
+
 public:
     std::stringstream global_decl;
     bool program();
     Symbols *symbols;
-    Parser(const std::string &inputFileName) : lexer_handle(inputFileName), builder(context), module(inputFileName, context)
+    Parser(const std::string &inputFileName, const std::string &outputFileName) : lexer_handle(inputFileName), builder(context), module(inputFileName, context)
     {
         symbols = new Symbols();
         cur_tk = lexer_handle.scan();
+        dest = new llvm::raw_fd_ostream(outputFileName, ec);
     };
+    Parser(const std::string &inputFileName) : Parser(inputFileName, "-") {}
     void initialize()
     {
         llvm::InitializeNativeTarget();
@@ -219,7 +227,21 @@ public:
         getinteger();
         getfloat();
         getbool();
+        // getstring();
         sqrt();
     };
-    void execute(){};
+    void execute()
+    {
+        llvm::verifyFunction(*mainFunc);
+        // Verify the module and print errors to both console and file
+        bool hasErrors = llvm::verifyModule(module, dest);
+        module.print(*dest, nullptr);
+        llvm::ExecutionEngine *engine = llvm::EngineBuilder(std::unique_ptr<llvm::Module>(&module)).create();
+
+        // Execute the main function
+        engine->runFunction(mainFunc, {});
+
+        // Clean up
+        delete engine;
+    };
 };
