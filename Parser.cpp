@@ -95,6 +95,7 @@ bool Parser::program_body() // Complete
   {
     llvm::FunctionType *funcType = llvm::FunctionType::get(builder.getVoidTy(), false);
     llvm::Function *mainFunc = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, "main", &module);
+    mainFunc->setDSOLocal(true);
     llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "entry", mainFunc);
     builder.SetInsertPoint(entryBlock);
     while (statement() && scan_assume((token_type)';'))
@@ -105,6 +106,9 @@ bool Parser::program_body() // Complete
       llvm::verifyFunction(*mainFunc);
       std::error_code ec;
       llvm::raw_fd_ostream dest("-", ec);
+
+      // Verify the module and print errors to both console and file
+      bool hasErrors = llvm::verifyModule(module, &dest);
       module.print(dest, nullptr);
       return true;
     }
@@ -127,7 +131,12 @@ bool Parser::declaration()
     {
       llvm::Value *variable;
       if (decl.global_var)
-        variable = new llvm::GlobalVariable(module, dataType, false, llvm::GlobalValue::ExternalLinkage, nullptr, decl.tokenMark.stringValue);
+      {
+        llvm::Constant *zeroInitializer = llvm::Constant::getNullValue(dataType);
+        llvm::GlobalVariable *temp = new llvm::GlobalVariable(module, dataType, false, llvm::GlobalValue::ExternalLinkage, zeroInitializer, decl.tokenMark.stringValue);
+        temp->setDSOLocal(true);
+        variable = temp;
+      }
       else
         variable = builder.CreateAlloca(dataType, nullptr, decl.tokenMark.stringValue);
       decl.llvm_value = variable;
@@ -172,6 +181,7 @@ bool Parser::procedure_header(token &proc)
         llvmargs.push_back(getLLVMType(argInfo.dataType));
       llvm::FunctionType *funcType = llvm::FunctionType::get(getLLVMType(proc.dataType), llvmargs, false);
       llvm::Function *Func = llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, proc.tokenMark.stringValue, &module);
+      Func->setDSOLocal(true);
       llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "", Func);
       builder.SetInsertPoint(entryBlock);
       auto argIt = Func->arg_begin();
@@ -279,15 +289,21 @@ bool Parser::if_statement()
     llvm::BasicBlock *mergeBlock = llvm::BasicBlock::Create(context, "continue");
     builder.CreateCondBr(result, thenBlock, elseBlock);
     builder.SetInsertPoint(thenBlock);
+    returned_flag_for_if = false;
     while (statement() && scan_assume((token_type)';'))
       ;
-    builder.CreateBr(mergeBlock);
+    if (returned_flag_for_if == false)
+      builder.CreateBr(mergeBlock);
+    returned_flag_for_if = false;
     function->getBasicBlockList().push_back(elseBlock);
     builder.SetInsertPoint(elseBlock);
+    returned_flag_for_if = false;
     if (optional_scan_assume(ELSE_RW))
       while (statement() && scan_assume((token_type)';'))
         ;
-    builder.CreateBr(mergeBlock);
+    if (returned_flag_for_if == false)
+      builder.CreateBr(mergeBlock);
+    returned_flag_for_if = false;
     function->getBasicBlockList().push_back(mergeBlock);
     builder.SetInsertPoint(mergeBlock);
     if (scan_assume(END_RW) && scan_assume(IF_RW))
@@ -321,7 +337,7 @@ bool Parser::destination(token &var)
   {
     token result;
     llvm::Value *size;
-    while (expression(result,  size))
+    while (expression(result, size))
       ;
     if (scan_assume((token_type)']'))
       return true;
@@ -348,9 +364,10 @@ bool Parser::return_statement()
 {
   token result;
   llvm::Value *returnValue;
-  if (expression(result,  returnValue))
+  if (expression(result, returnValue))
   {
     builder.CreateRet(returnValue);
+    returned_flag_for_if = true;
     return true;
   }
   return false;
@@ -362,7 +379,7 @@ bool Parser::procedure_call(token &proc, llvm::Value *&returnValue)
   if (!calleeFunc)
   {
     // Error: The function is not defined
-    return false;
+    // return false;
   }
   std::vector<llvm::Value *> arguments;
   if (optional_scan_assume((token_type)')'))
@@ -398,7 +415,7 @@ bool Parser::argument_list(llvm::Function *calleeFunc, std::vector<llvm::Value *
 bool Parser::cond_expression(llvm::Value *&result)
 {
   token exp_result;
-  if (expression(exp_result,  result))
+  if (expression(exp_result, result))
   {
     return true;
   }
@@ -406,7 +423,7 @@ bool Parser::cond_expression(llvm::Value *&result)
     return false;
 }
 
-bool Parser::expression(token &exp_result,  llvm::Value *&value)
+bool Parser::expression(token &exp_result, llvm::Value *&value)
 {
   optional_scan_assume((token_type)'!'); // Might be replaced if not is a keyword
   if (arithOp(exp_result, value))
@@ -458,7 +475,7 @@ bool Parser::arithOp(token &var, llvm::Value *&value)
       llvm::Value *value_2 = nullptr;
 
       // Parse the next term using relation
-      if (relation(term_2,  value_2))
+      if (relation(term_2, value_2))
       {
         // Generate LLVM IR for the arithmetic operation based on the operator
         llvm::Instruction::BinaryOps binaryOp = llvm::Instruction::BinaryOpsEnd;
@@ -512,14 +529,14 @@ bool Parser::relation(token &var, llvm::Value *&value)
   llvm::Value *value_1 = nullptr, *value_2 = nullptr;
   if (factor(var_1, value_1))
   {
-    if (optional_scan_assume((token_type)'<', op) || optional_scan_assume(LESS_EQUAL, op) || optional_scan_assume(GREATER_EQUAL, op) ||
-        optional_scan_assume((token_type)'>', op) || optional_scan_assume(EQUALITY, op) || optional_scan_assume(NOT_EQUAL, op))
+    if (optional_scan_assume(LESS_THAN, op) || optional_scan_assume(LESS_EQUAL, op) || optional_scan_assume(GREATER_EQUAL, op) ||
+        optional_scan_assume(GREATER_THAN, op) || optional_scan_assume(EQUALITY, op) || optional_scan_assume(NOT_EQUAL, op))
     {
       if (factor(var_2, value_2))
       {
         // Generate LLVM IR for the comparison based on the operator
         llvm::CmpInst::Predicate predicate = llvm::CmpInst::ICMP_EQ; // Default to equal comparison
-        if (op.type == (token_type)'<')
+        if (op.type == LESS_THAN)
         {
           predicate = llvm::CmpInst::ICMP_SLT;
         }
@@ -531,7 +548,7 @@ bool Parser::relation(token &var, llvm::Value *&value)
         {
           predicate = llvm::CmpInst::ICMP_SGE;
         }
-        else if (op.type == (token_type)'>')
+        else if (op.type == GREATER_THAN)
         {
           predicate = llvm::CmpInst::ICMP_SGT;
         }
@@ -577,6 +594,13 @@ bool Parser::factor(token &var, llvm::Value *&value)
   }
   else if (optional_scan_assume(STRING_VAL, var))
   {
+    llvm::Type *stringType = llvm::Type::getInt8PtrTy(context);
+    llvm::Constant *stringLiteral = llvm::ConstantDataArray::getString(context, var.tokenMark.stringValue);
+    llvm::GlobalVariable *stringVar = new llvm::GlobalVariable(module, stringLiteral->getType(), true, llvm::GlobalValue::PrivateLinkage, stringLiteral);
+    llvm::Value *zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+    llvm::Value *indices[] = {zero, zero};
+    llvm::Constant *stringPtr = llvm::ConstantExpr::getGetElementPtr(stringLiteral->getType(), stringVar, indices);
+    value = builder.CreateBitCast(stringPtr, stringType);
     return true;
   }
   else
@@ -620,10 +644,36 @@ llvm::Type *Parser::getLLVMType(token_type type)
   case FLOAT_RW:
     return builder.getFloatTy();
   case STRING_RW:
-    return builder.getInt64Ty();
+    return llvm::Type::getInt8PtrTy(context);
   case BOOLEAN_RW:
     return builder.getInt1Ty();
   default:
     return nullptr; // Unknown type
   }
 }
+
+void Parser::putinteger()
+{
+  llvm::FunctionType *printfType = llvm::FunctionType::get(llvm::Type::getInt32Ty(context), llvm::Type::getInt8PtrTy(context), true);
+  llvm::Function *printfFunc = llvm::Function::Create(printfType, llvm::Function::ExternalLinkage, "printf", &module);
+
+  // Define the putinteger function
+  llvm::FunctionType *putintegerType = llvm::FunctionType::get(llvm::Type::getInt1Ty(context), llvm::Type::getInt32Ty(context), false);
+  llvm::Function *putintegerFunc = llvm::Function::Create(putintegerType, llvm::Function::ExternalLinkage, "putinteger", &module);
+  llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "", putintegerFunc);
+  builder.SetInsertPoint(entryBlock);
+
+  // Create format string constant
+  llvm::Constant *formatStr = llvm::ConstantDataArray::getString(context, "%d\n");
+  llvm::GlobalVariable *formatVar = new llvm::GlobalVariable(module, formatStr->getType(), true, llvm::GlobalValue::PrivateLinkage, formatStr);
+  llvm::Value *zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+  llvm::Value *indices[] = {zero, zero};
+  llvm::Constant *formatPtr = llvm::ConstantExpr::getGetElementPtr(formatStr->getType(), formatVar, indices);
+
+  // Call printf function
+  llvm::Value *value = putintegerFunc->args().begin();
+  llvm::Value *printfArgs[] = {formatPtr, value};
+  builder.CreateCall(printfFunc, printfArgs);
+  builder.CreateRet(builder.getInt1(1));
+}
+

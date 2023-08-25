@@ -183,7 +183,11 @@ private:
     bool relation(token &, llvm::Value *&);
     bool factor(token &, llvm::Value *&);
     bool argument_list(llvm::Function *calleeFunc, std::vector<llvm::Value *> &args);
+    void putinteger();
+    void putfloat();
+    void putstring();
     llvm::Type *getLLVMType(token_type type);
+    bool returned_flag_for_if = false;
 
 public:
     std::vector<std::stringstream> buffer;
@@ -194,12 +198,16 @@ public:
     int label_gen = 10;
     Parser(const std::string &inputFileName) : lexer_handle(inputFileName), builder(context), module(inputFileName, context)
     {
-        llvm::InitializeNativeTarget();
-        llvm::InitializeNativeTargetAsmPrinter();
-        // Initialize LLVM module
         auto globalstream = std::stringstream();
         buffer.push_back(std::move(globalstream));
         symbols = new Symbols();
         cur_tk = lexer_handle.scan();
     };
+    void initialize()
+    {
+        llvm::InitializeNativeTarget();
+        llvm::InitializeNativeTargetAsmPrinter();
+        putinteger();
+    };
+    void execute(){};
 };

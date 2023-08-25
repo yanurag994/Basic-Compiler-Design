@@ -12,6 +12,7 @@ int main(int argc, char *argv[])
         return 1;
     }
     Parser handle(argv[1]);
+    handle.initialize();
     handle.program();
     return 0;
 }
