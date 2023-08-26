@@ -192,8 +192,20 @@ bool Parser::procedure_header(token &proc)
         builder.CreateStore(arg, allocaInst);
         ++argIt;
       }
+      while (declaration())
+        builder.SetInsertPoint(entryBlock);
+      if (scan_assume(BEGIN_RW))
+        ;
+      while (statement() && scan_assume((token_type)';'))
+        ;
+      if (scan_assume(END_RW) && scan_assume(PROCEDURE_RW) && scan_assume((token_type)';'))
+      {
+        symbols->exitScope();
         return true;
       }
+      lexer_handle.reportWarning("Resync not possible at this stage");
+      return false;
+    }
     return false;
   }
   else
@@ -204,19 +216,7 @@ bool Parser::procedure_header(token &proc)
 
 bool Parser::procedure_body(token &proc)
 {
-  while (declaration())
-    ;
-  if (scan_assume(BEGIN_RW))
-    ;
-  while (statement() && scan_assume((token_type)';'))
-    ;
-  if (scan_assume(END_RW) && scan_assume(PROCEDURE_RW) && scan_assume((token_type)';'))
-  {
-    symbols->exitScope();
   return true;
-}
-  lexer_handle.reportWarning("Resync not possible at this stage");
-  return false;
 }
 
 bool Parser::parameter_list(std::vector<token> &argType)
@@ -583,8 +583,17 @@ bool Parser::relation(token &var, llvm::Value *&value)
           predicate = llvm::CmpInst::ICMP_NE;
         }
         // Generate LLVM IR for the comparison
-        value = builder.CreateICmp(predicate, value_1, value_2, "");
-
+        if (value_1->getType() == llvm::Type::getInt8PtrTy(context) && op.type == EQUALITY)
+        {
+          llvm::Function *strcmpFunc = module.getFunction("strcmp");
+          llvm::Value *strcmpArgs[] = {value_1, value_2};
+          value = builder.CreateCall(strcmpFunc, strcmpArgs);
+          value = builder.CreateICmp(predicate, value, builder.getInt32(0), "");
+        }
+        else
+        {
+          value = builder.CreateICmp(predicate, value_1, value_2, "");
+        }
         return true;
       }
       else
@@ -611,7 +620,7 @@ bool Parser::factor(token &var, llvm::Value *&value)
 
   if (optional_scan_assume(TRUE_RW, var) || optional_scan_assume(FALSE_RW, var))
   {
-    value = builder.getInt32(var.type == TRUE_RW);
+    value = builder.getInt1(var.type == TRUE_RW);
     return true;
   }
   else if (optional_scan_assume(STRING_VAL, var))
@@ -653,8 +662,10 @@ bool Parser::factor(token &var, llvm::Value *&value)
         llvm::Value *size;
         if (expression(result, size) && scan_assume((token_type)']'))
         {
-          llvm::Value *pointer = builder.CreateGEP(datatype, var.llvm_value, size);
-          value = builder.CreateLoad(datatype, pointer);
+          llvm::Value *zeroIndex = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+          llvm::Value *indices[] = {zeroIndex, size}; // Index into the array
+          llvm::Value *pointer = builder.CreateGEP(datatype, var.llvm_value, indices);
+          value = builder.CreateLoad(pointer->getType(), pointer);
           return true;
         }
       }
@@ -664,6 +675,10 @@ bool Parser::factor(token &var, llvm::Value *&value)
         return true;
       }
       return false;
+    }
+    else if (optional_scan_assume((token_type)'('))
+    {
+      return expression(var, value) && scan_assume((token_type)')');
     }
     return false;
   }
@@ -696,6 +711,14 @@ void Parser::scanf()
 {
   llvm::FunctionType *scanfType = llvm::FunctionType::get(llvm::Type::getInt32Ty(context), llvm::Type::getInt8PtrTy(context), true);
   llvm::Function *scanfFunc = llvm::Function::Create(scanfType, llvm::Function::ExternalLinkage, "scanf", &module);
+}
+
+void Parser::strcmp()
+{
+  llvm::Type *i8PtrType = llvm::Type::getInt8PtrTy(context);
+  llvm::Type *strcmpArgTypes[] = {i8PtrType, i8PtrType};
+  llvm::FunctionType *strcmpType = llvm::FunctionType::get(llvm::Type::getInt32Ty(context), strcmpArgTypes, false);
+  llvm::Function *strcmpFunc = llvm::Function::Create(strcmpType, llvm::Function::ExternalLinkage, "strcmp", &module);
 }
 
 void Parser::putinteger()
@@ -912,9 +935,6 @@ llvm::Value *Parser::sqrt()
 llvm::Value *Parser::getstring()
 {
   llvm::Function *scanfFunc = module.getFunction("scanf");
-  // Create the constant for the format string
-  llvm::GlobalVariable *formatStr = new llvm::GlobalVariable(module, llvm::ArrayType::get(llvm::IntegerType::get(context, 8), 3), true, llvm::GlobalValue::PrivateLinkage, llvm::ConstantDataArray::getString(context, "%s"), "");
-  llvm::Constant *formatStr_1 = llvm::ConstantDataArray::getString(context, "%s");
   llvm::FunctionType *scanfType = llvm::FunctionType::get(llvm::IntegerType::get(context, 32), llvm::PointerType::get(llvm::IntegerType::get(context, 8), 0), true);
 
   // Define the getstring function
@@ -923,11 +943,19 @@ llvm::Value *Parser::getstring()
   llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "entry", getstringFunc);
   builder.SetInsertPoint(entryBlock);
 
-  llvm::AllocaInst *name = builder.CreateAlloca(llvm::PointerType::get(llvm::IntegerType::get(context, 8), 0), nullptr, "name");
+  // Initialize the variable and allocate memory using malloc
+  llvm::AllocaInst *name = builder.CreateAlloca(llvm::Type::getInt8PtrTy(context), nullptr, "name");
   llvm::CallInst *mallocCall = builder.CreateCall(llvm::Function::Create(llvm::FunctionType::get(llvm::PointerType::get(llvm::IntegerType::get(context, 8), 0), {llvm::IntegerType::get(context, 64)}, false), llvm::GlobalValue::LinkageTypes::ExternalLinkage, "malloc", module), llvm::ConstantInt::get(context, llvm::APInt(64, 256)), "malloc");
   builder.CreateStore(mallocCall, name);
   llvm::LoadInst *nameLoad = builder.CreateLoad(llvm::PointerType::get(llvm::IntegerType::get(context, 8), 0), name);
-  llvm::CallInst *scanfCall = builder.CreateCall(scanfFunc, {formatStr, nameLoad});
+
+  llvm::Constant *formatStr = llvm::ConstantDataArray::getString(context, "%s");
+  llvm::GlobalVariable *formatVar = new llvm::GlobalVariable(module, formatStr->getType(), true, llvm::GlobalValue::PrivateLinkage, formatStr);
+  llvm::Value *zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+  llvm::Value *indices[] = {zero, zero};
+  llvm::Constant *formatPtr = llvm::ConstantExpr::getGetElementPtr(formatStr->getType(), formatVar, indices);
+
+  llvm::CallInst *scanfCall = builder.CreateCall(scanfFunc, {formatPtr, nameLoad});
   builder.CreateRet(nameLoad);
   return getstringFunc;
 }

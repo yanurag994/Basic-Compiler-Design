@@ -113,12 +113,16 @@ public:
         }
         else
         {
-            if (foundToken != current->symbol_table.end())
-                return foundToken->second;
-            else if (glbfoundToken != global->symbol_table.end())
-                return glbfoundToken->second;
-            else
-                throw TokenNotFoundError(search_for.tokenMark.stringValue);
+            auto temp = current;
+            while (temp != nullptr)
+            {
+                auto search_token = temp->symbol_table.find(search_for.tokenMark.stringValue);
+                if (search_token != temp->symbol_table.end())
+                    return search_token->second;
+                else
+                    temp = temp->previous;
+            }
+            throw TokenNotFoundError(search_for.tokenMark.stringValue);
         }
     };
     void Completetoken(token &search_for)
@@ -194,6 +198,7 @@ private:
     void putstring();
     void putbool();
     void scanf();
+    void strcmp();
     llvm::Value *getinteger();
     llvm::Value *getfloat();
     llvm::Value *getstring();
@@ -202,6 +207,7 @@ private:
     llvm::Function *mainFunc;
     std::error_code ec;
     llvm::raw_fd_ostream *dest;
+    llvm::raw_fd_ostream *console;
 
 public:
     std::stringstream global_decl;
@@ -212,6 +218,7 @@ public:
         symbols = new Symbols();
         cur_tk = lexer_handle.scan();
         dest = new llvm::raw_fd_ostream(outputFileName, ec);
+        console = new llvm::raw_fd_ostream("-", ec);
     };
     Parser(const std::string &inputFileName) : Parser(inputFileName, "-") {}
     void initialize()
@@ -220,6 +227,7 @@ public:
         llvm::InitializeNativeTargetAsmPrinter();
         printf();
         scanf();
+        strcmp();
         putinteger();
         putfloat();
         putstring();
@@ -233,9 +241,9 @@ public:
     void execute()
     {
         llvm::verifyFunction(*mainFunc);
-        bool hasErrors = llvm::verifyModule(module, dest);
+        bool hasErrors = llvm::verifyModule(module, console);
         module.print(*dest, nullptr);
         llvm::ExecutionEngine *engine = llvm::EngineBuilder(std::unique_ptr<llvm::Module>(&module)).create();
         engine->runFunction(mainFunc, {});
-   };
+    };
 };
