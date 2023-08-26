@@ -178,7 +178,7 @@ private:
     bool statement();
     bool procedure_call(token &, llvm::Value *&);
     bool assignment_statement(token &);
-    bool destination(token &);
+    bool destination(token &, llvm::Value *&);
     bool if_statement();
     bool loop_statement();
     bool return_statement();
@@ -227,21 +227,15 @@ public:
         getinteger();
         getfloat();
         getbool();
-        // getstring();
+        getstring();
         sqrt();
     };
     void execute()
     {
         llvm::verifyFunction(*mainFunc);
-        // Verify the module and print errors to both console and file
         bool hasErrors = llvm::verifyModule(module, dest);
         module.print(*dest, nullptr);
         llvm::ExecutionEngine *engine = llvm::EngineBuilder(std::unique_ptr<llvm::Module>(&module)).create();
-
-        // Execute the main function
         engine->runFunction(mainFunc, {});
-
-        // Clean up
-        delete engine;
-    };
+   };
 };
