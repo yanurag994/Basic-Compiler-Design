@@ -480,12 +480,9 @@ bool Parser::expression(token &exp_result, llvm::Value *&value)
     if (optional_scan_assume((token_type)'|', op) || optional_scan_assume((token_type)'&', op))
     {
       llvm::Value *secondValue = nullptr;
-      bool isOr = op.type == (token_type)'|';
-
-      // Recursive call to handle the second part of the expression
       if (expression(exp_result, secondValue))
       {
-        if (isOr)
+        if (op.type == (token_type)'|')
           value = builder.CreateOr(value, secondValue, "ortmp");
         else
           value = builder.CreateAnd(value, secondValue, "andtmp");
@@ -493,6 +490,7 @@ bool Parser::expression(token &exp_result, llvm::Value *&value)
           value = builder.CreateNot(value);
         return true;
       }
+      lexer_handle.reportError("RHS not found of bitwise operator");
       return false;
     }
     else
@@ -503,9 +501,7 @@ bool Parser::expression(token &exp_result, llvm::Value *&value)
     }
   }
   else
-  {
     return true;
-  }
 }
 
 bool Parser::arithOp(token &var, llvm::Value *&value)
@@ -577,46 +573,53 @@ bool Parser::relation(token &var, llvm::Value *&value)
   llvm::Value *value_1 = nullptr, *value_2 = nullptr;
   if (factor(var_1, value_1))
   {
-    if (optional_scan_assume(LESS_THAN, op) || optional_scan_assume(LESS_EQUAL, op) || optional_scan_assume(GREATER_EQUAL, op) ||
-        optional_scan_assume(GREATER_THAN, op) || optional_scan_assume(EQUALITY, op) || optional_scan_assume(NOT_EQUAL, op))
+    if (optional_scan_assume(LESS_THAN, op) || optional_scan_assume(LESS_EQUAL, op) || optional_scan_assume(GREATER_EQUAL, op) || optional_scan_assume(GREATER_THAN, op) || optional_scan_assume(EQUALITY, op) || optional_scan_assume(NOT_EQUAL, op))
     {
       if (factor(var_2, value_2))
       {
         // Generate LLVM IR for the comparison based on the operator
-        llvm::CmpInst::Predicate predicate = llvm::CmpInst::ICMP_EQ; // Default to equal comparison
-        if (op.type == LESS_THAN)
+        llvm::CmpInst::Predicate predicate;
+        switch (op.type)
         {
+        case LESS_THAN:
           predicate = llvm::CmpInst::ICMP_SLT;
-        }
-        else if (op.type == LESS_EQUAL)
-        {
+          break;
+        case LESS_EQUAL:
           predicate = llvm::CmpInst::ICMP_SLE;
-        }
-        else if (op.type == GREATER_EQUAL)
-        {
+          break;
+        case GREATER_EQUAL:
           predicate = llvm::CmpInst::ICMP_SGE;
-        }
-        else if (op.type == GREATER_THAN)
-        {
+          break;
+        case GREATER_THAN:
           predicate = llvm::CmpInst::ICMP_SGT;
-        }
-        else if (op.type == EQUALITY)
-        {
+          break;
+        case EQUALITY:
           predicate = llvm::CmpInst::ICMP_EQ;
-        }
-        else if (op.type == NOT_EQUAL)
-        {
+          break;
+        case NOT_EQUAL:
           predicate = llvm::CmpInst::ICMP_NE;
+          break;
+        default:
+          lexer_handle.reportError("Invalid logical operator");
+          return false;
+          break;
         }
-        // Generate LLVM IR for the comparison
-        if (value_1->getType() == llvm::Type::getInt8PtrTy(context) && op.type == EQUALITY)
+        if (value_1->getType() == llvm::Type::getInt8PtrTy(context)) // String comparision using strcmp
         {
-          llvm::Function *strcmpFunc = module.getFunction("strcmp");
-          llvm::Value *strcmpArgs[] = {value_1, value_2};
-          value = builder.CreateCall(strcmpFunc, strcmpArgs);
-          value = builder.CreateICmp(predicate, value, builder.getInt32(0), "");
+          if (op.type == EQUALITY || op.type == NOT_EQUAL)
+          {
+            llvm::Function *strcmpFunc = module.getFunction("strcmp");
+            llvm::Value *strcmpArgs[] = {value_1, value_2};
+            value = builder.CreateCall(strcmpFunc, strcmpArgs);
+            value = builder.CreateICmp(predicate, value, builder.getInt32(0), "");
+          }
+          else
+          {
+            lexer_handle.reportError("String variable only support equal and notequal comparision");
+            return false;
+          }
         }
-        else
+        else // Requires type checking to be added.
         {
           value = builder.CreateICmp(predicate, value_1, value_2, "");
         }
@@ -624,12 +627,13 @@ bool Parser::relation(token &var, llvm::Value *&value)
       }
       else
       {
+        lexer_handle.reportError("RHS not founf for comparision operator");
         return false;
       }
     }
     else
     {
-      // No relational operator, assign the value from var_1
+      // No relational operator, assign the value from var_1 for AST collapse
       var = var_1;
       value = value_1;
       return true;
@@ -688,18 +692,19 @@ bool Parser::factor(token &var, llvm::Value *&value)
         llvm::Value *size;
         if (expression(result, size) && scan_assume((token_type)']'))
         {
-          llvm::Value *indices[] = {
-              llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0), // Index 0
-              size                                                        // Index X
-          };
+          llvm::Value *indices[] = {llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0), size};
           llvm::Value *pointer = builder.CreateGEP(datatype, var.llvm_value, indices);
           value = builder.CreateLoad(getLLVMType(var.dataType), pointer);
+          if (isNegative)
+            value = builder.CreateNeg(value, "");
           return true;
         }
       }
       else
       {
         value = builder.CreateLoad(getLLVMType(var.dataType), var.llvm_value);
+        if (isNegative)
+          value = builder.CreateNeg(value, "");
         return true;
       }
       return false;
@@ -739,6 +744,12 @@ void Parser::scanf()
 {
   llvm::FunctionType *scanfType = llvm::FunctionType::get(llvm::Type::getInt32Ty(context), llvm::Type::getInt8PtrTy(context), true);
   llvm::Function *scanfFunc = llvm::Function::Create(scanfType, llvm::Function::ExternalLinkage, "scanf", &module);
+}
+
+void Parser::malloc()
+{
+  llvm::FunctionType *mallocType = llvm::FunctionType::get(llvm::PointerType::get(llvm::IntegerType::get(context, 8), 0), {llvm::IntegerType::get(context, 64)}, false);
+  llvm::Function *mallocFunc = llvm::Function::Create(mallocType, llvm::Function::ExternalLinkage, "malloc", module);
 }
 
 void Parser::strcmp()
@@ -940,6 +951,35 @@ llvm::Value *Parser::getbool()
   return getboolFunc;
 }
 
+llvm::Value *Parser::getstring()
+{
+  llvm::Function *scanfFunc = module.getFunction("scanf");
+  llvm::Function *mallocFunc = module.getFunction("malloc");
+  llvm::FunctionType *scanfType = llvm::FunctionType::get(llvm::IntegerType::get(context, 32), llvm::PointerType::get(llvm::IntegerType::get(context, 8), 0), true);
+
+  // Define the getstring function
+  llvm::FunctionType *getstringType = llvm::FunctionType::get(llvm::PointerType::get(llvm::IntegerType::get(context, 8), 0), {}, false);
+  llvm::Function *getstringFunc = llvm::Function::Create(getstringType, llvm::GlobalValue::LinkageTypes::ExternalLinkage, "getstring", module);
+  llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "", getstringFunc);
+  builder.SetInsertPoint(entryBlock);
+
+  // Initialize the variable and allocate memory using malloc
+  llvm::AllocaInst *name = builder.CreateAlloca(llvm::Type::getInt8PtrTy(context), nullptr, "name");
+  llvm::CallInst *mallocCall = builder.CreateCall(mallocFunc, llvm::ConstantInt::get(context, llvm::APInt(64, 256)), "malloc");
+  builder.CreateStore(mallocCall, name);
+  llvm::LoadInst *nameLoad = builder.CreateLoad(llvm::PointerType::get(llvm::IntegerType::get(context, 8), 0), name);
+
+  llvm::Constant *formatStr = llvm::ConstantDataArray::getString(context, "%s");
+  llvm::GlobalVariable *formatVar = new llvm::GlobalVariable(module, formatStr->getType(), true, llvm::GlobalValue::PrivateLinkage, formatStr);
+  llvm::Value *zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
+  llvm::Value *indices[] = {zero, zero};
+  llvm::Constant *formatPtr = llvm::ConstantExpr::getGetElementPtr(formatStr->getType(), formatVar, indices);
+
+  llvm::CallInst *scanfCall = builder.CreateCall(scanfFunc, {formatPtr, nameLoad});
+  builder.CreateRet(nameLoad);
+  return getstringFunc;
+}
+
 llvm::Value *Parser::sqrt()
 {
   llvm::FunctionType *sqrtFuncType = llvm::FunctionType::get(llvm::Type::getFloatTy(context), llvm::Type::getInt32Ty(context), false);
@@ -958,32 +998,4 @@ llvm::Value *Parser::sqrt()
 
   builder.CreateRet(sqrtResult);
   return sqrtFunc;
-}
-
-llvm::Value *Parser::getstring()
-{
-  llvm::Function *scanfFunc = module.getFunction("scanf");
-  llvm::FunctionType *scanfType = llvm::FunctionType::get(llvm::IntegerType::get(context, 32), llvm::PointerType::get(llvm::IntegerType::get(context, 8), 0), true);
-
-  // Define the getstring function
-  llvm::FunctionType *getstringType = llvm::FunctionType::get(llvm::PointerType::get(llvm::IntegerType::get(context, 8), 0), {}, false);
-  llvm::Function *getstringFunc = llvm::Function::Create(getstringType, llvm::GlobalValue::LinkageTypes::ExternalLinkage, "getstring", module);
-  llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "entry", getstringFunc);
-  builder.SetInsertPoint(entryBlock);
-
-  // Initialize the variable and allocate memory using malloc
-  llvm::AllocaInst *name = builder.CreateAlloca(llvm::Type::getInt8PtrTy(context), nullptr, "name");
-  llvm::CallInst *mallocCall = builder.CreateCall(llvm::Function::Create(llvm::FunctionType::get(llvm::PointerType::get(llvm::IntegerType::get(context, 8), 0), {llvm::IntegerType::get(context, 64)}, false), llvm::GlobalValue::LinkageTypes::ExternalLinkage, "malloc", module), llvm::ConstantInt::get(context, llvm::APInt(64, 256)), "malloc");
-  builder.CreateStore(mallocCall, name);
-  llvm::LoadInst *nameLoad = builder.CreateLoad(llvm::PointerType::get(llvm::IntegerType::get(context, 8), 0), name);
-
-  llvm::Constant *formatStr = llvm::ConstantDataArray::getString(context, "%s");
-  llvm::GlobalVariable *formatVar = new llvm::GlobalVariable(module, formatStr->getType(), true, llvm::GlobalValue::PrivateLinkage, formatStr);
-  llvm::Value *zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
-  llvm::Value *indices[] = {zero, zero};
-  llvm::Constant *formatPtr = llvm::ConstantExpr::getGetElementPtr(formatStr->getType(), formatVar, indices);
-
-  llvm::CallInst *scanfCall = builder.CreateCall(scanfFunc, {formatPtr, nameLoad});
-  builder.CreateRet(nameLoad);
-  return getstringFunc;
 }

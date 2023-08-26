@@ -193,12 +193,13 @@ private:
     bool factor(token &, llvm::Value *&);
     bool argument_list(llvm::Function *calleeFunc, std::vector<llvm::Value *> &args);
     void printf();
+    void scanf();
+    void strcmp();
+    void malloc();
     void putinteger();
     void putfloat();
     void putstring();
     void putbool();
-    void scanf();
-    void strcmp();
     llvm::Value *getinteger();
     llvm::Value *getfloat();
     llvm::Value *getstring();
@@ -227,6 +228,7 @@ public:
         llvm::InitializeNativeTargetAsmPrinter();
         printf();
         scanf();
+        malloc();
         strcmp();
         putinteger();
         putfloat();
