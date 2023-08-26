@@ -77,17 +77,17 @@ bool Parser::resync(token_type type, bool ahead = false)
   return false;
 }
 
-bool Parser::program() // Complete
+bool Parser::program()
 {
   return (program_header() && program_body() && scan_assume((token_type)'.')) ? true : false;
 }
 
-bool Parser::program_header() // Complete
+bool Parser::program_header()
 {
   return (scan_assume(PROGRAM_RW) && scan_assume(IDENTIFIER) && scan_assume(IS_RW)) ? true : resync(IS_RW);
 }
 
-bool Parser::program_body() // Complete
+bool Parser::program_body()
 {
   while (declaration())
     ;
@@ -123,6 +123,9 @@ bool Parser::declaration()
     if (dataType)
     {
       llvm::Value *variable;
+      llvm::Value *array_size = nullptr;
+      if (decl.size != -1)
+        dataType = llvm::ArrayType::get(dataType, decl.size);
       if (decl.global_var)
       {
         llvm::Constant *zeroInitializer = llvm::Constant::getNullValue(dataType);
@@ -155,7 +158,7 @@ bool Parser::type_mark(token_type &dType)
   }
 }
 
-bool Parser::procedure_declaration(token &proc) // Complete
+bool Parser::procedure_declaration(token &proc)
 {
   return procedure_header(proc) && procedure_body(proc) ? true : resync(PROCEDURE_RW, true);
 }
@@ -307,9 +310,9 @@ bool Parser::if_statement()
 
 bool Parser::assignment_statement(token &dest)
 {
-  if (destination(dest))
+  llvm::Value *LHS = nullptr;
+  if (destination(dest, LHS))
   {
-    llvm::Value *LHS = dest.llvm_value;
     if (scan_assume(EQUAL_ASSIGN))
     {
       token result;
@@ -324,33 +327,54 @@ bool Parser::assignment_statement(token &dest)
   return false;
 }
 
-bool Parser::destination(token &var)
+bool Parser::destination(token &var, llvm::Value *&value)
 {
+  value = var.llvm_value;
   if (optional_scan_assume((token_type)'['))
   {
     token result;
-    llvm::Value *size;
-    while (expression(result, size))
-      ;
-    if (scan_assume((token_type)']'))
+    llvm::Value *index = nullptr; // Fixed: Initialize index
+    if (expression(result, index) && scan_assume((token_type)']'))
+    {
+      // Calculate the element pointer using CreateGEP
+      llvm::Type *elementType = getLLVMType(var.dataType);
+      value = builder.CreateGEP(elementType, value, index);
       return true;
+    }
+    return false; // Added: Return false if array index parsing fails
   }
   return true;
 }
 
 bool Parser::loop_statement()
 {
-  return true;
-  /*   token var, exp_result;
-    std::stringstream exp;
-    if (scan_assume((token_type)'(') && scan_assume(IDENTIFIER, var) && assignment_statement(var) && scan_assume((token_type)';') && expression(exp_result, exp) && scan_assume((token_type)')'))
+  token iteration_var;
+  llvm::Value *condtion = nullptr;
+  if (scan_assume((token_type)'(') && scan_assume(IDENTIFIER, iteration_var) && assignment_statement(iteration_var) && scan_assume((token_type)';'))
+  {
+    llvm::Function *function = builder.GetInsertBlock()->getParent();
+    llvm::BasicBlock *conditionbody = llvm::BasicBlock::Create(context, "condition", function);
+    builder.CreateBr(conditionbody);
+    builder.SetInsertPoint(conditionbody);
+    if (cond_expression(condtion) && scan_assume((token_type)')'))
     {
+      llvm::BasicBlock *loopbody = llvm::BasicBlock::Create(context, "loop", function);
+      llvm::BasicBlock *outsidebody = llvm::BasicBlock::Create(context, "outside", function);
+      builder.CreateCondBr(condtion, loopbody, outsidebody);
+      function->getBasicBlockList().push_back(loopbody);
+      builder.SetInsertPoint(loopbody);
       while (statement() && scan_assume((token_type)';'))
         ;
       if (scan_assume(END_RW) && scan_assume(FOR_RW))
+      {
+        builder.CreateBr(conditionbody);
+        function->getBasicBlockList().push_back(outsidebody);
+        builder.SetInsertPoint(outsidebody);
         return true;
+      }
     }
-    return false; */
+  }
+  return false;
 }
 
 bool Parser::return_statement()
@@ -606,21 +630,33 @@ bool Parser::factor(token &var, llvm::Value *&value)
     {
       value = builder.getInt32(var.tokenMark.intValue);
       if (isNegative)
-        value = builder.CreateNeg(value, "negtmp");
+        value = builder.CreateNeg(value, "");
       return true;
     }
     else if (optional_scan_assume(FLOAT_VAL, var))
     {
       value = llvm::ConstantFP::get(builder.getFloatTy(), (float)var.tokenMark.doubleValue);
       if (isNegative)
-        value = builder.CreateNeg(value, "negtmp");
+        value = builder.CreateNeg(value, "");
       return true;
     }
     else if (optional_scan_assume(IDENTIFIER, var))
     {
       if (optional_scan_assume((token_type)'(') && procedure_call(var, value))
         return true;
-      if (destination(var))
+      if (optional_scan_assume((token_type)'['))
+      {
+        llvm::Type *datatype = getLLVMType(var.dataType);
+        token result;
+        llvm::Value *size;
+        if (expression(result, size) && scan_assume((token_type)']'))
+        {
+          llvm::Value *pointer = builder.CreateGEP(datatype, var.llvm_value, size);
+          value = builder.CreateLoad(datatype, pointer);
+          return true;
+        }
+      }
+      else
       {
         value = builder.CreateLoad(getLLVMType(var.dataType), var.llvm_value);
         return true;
@@ -704,7 +740,7 @@ void Parser::putfloat()
   // Call printf function with correct format specifier for float
   llvm::Value *value = putfloatFunc->args().begin();
   llvm::Type *doubleTy = llvm::Type::getDoubleTy(context);
-  llvm::Value *convertedValue = builder.CreateFPExt(value, doubleTy, "convertedValue");
+  llvm::Value *convertedValue = builder.CreateFPExt(value, doubleTy, "");
   llvm::Value *printfArgs[] = {formatPtr, convertedValue};
   builder.CreateCall(printfFunc, printfArgs);
   builder.CreateRet(builder.getInt1(1));

@@ -150,7 +150,9 @@ token Lexer::scan()
   case '*':
   case '/':
   case '[':
-  case ']':                        // ... and other single char tokens
+  case ']':
+  case '+':
+  case '-':                        // ... and other single char tokens
     tk.type = (token_type)nxtChar; // tk.type = nxtChar; // ASCII value is used as token type
     break;                         // ASCII value used as token type
 
@@ -253,8 +255,6 @@ token Lexer::scan()
   case '7':
   case '8':
   case '9': //.... and other digits
-  case '+':
-  case '-':
   {
     if (nxtChar == '+' || nxtChar == '-')
     {
