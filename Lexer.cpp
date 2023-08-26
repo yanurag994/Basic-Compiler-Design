@@ -143,6 +143,9 @@ token Lexer::scan()
     break;
 
   case '.':
+  case '&':
+  case '|':
+  case '!':
   case ';':
   case ',':
   case '(':

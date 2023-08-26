@@ -243,7 +243,12 @@ public:
         llvm::verifyFunction(*mainFunc);
         bool hasErrors = llvm::verifyModule(module, console);
         module.print(*dest, nullptr);
+        int k;
+        std::cout << "Completed Code Generation" << std::endl;
         llvm::ExecutionEngine *engine = llvm::EngineBuilder(std::unique_ptr<llvm::Module>(&module)).create();
         engine->runFunction(mainFunc, {});
+
+        std::cout << "Completed Execution" << std::endl;
+        std::cin >> k;
     };
 };

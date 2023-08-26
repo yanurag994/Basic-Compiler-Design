@@ -336,9 +336,9 @@ bool Parser::destination(token &var, llvm::Value *&value)
     llvm::Value *index = nullptr; // Fixed: Initialize index
     if (expression(result, index) && scan_assume((token_type)']'))
     {
-      // Calculate the element pointer using CreateGEP
-      llvm::Type *elementType = getLLVMType(var.dataType);
-      value = builder.CreateGEP(elementType, value, index);
+      llvm::Type *datatype = llvm::ArrayType::get(llvm::Type::getInt32Ty(context), 3);
+      llvm::Value *indices[] = {llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0), index};
+      value = builder.CreateGEP(datatype, var.llvm_value, indices);
       return true;
     }
     return false; // Added: Return false if array index parsing fails
@@ -385,6 +385,23 @@ bool Parser::return_statement()
   llvm::Value *returnValue;
   if (expression(result, returnValue))
   {
+    llvm::Function *function = builder.GetInsertBlock()->getParent();
+    if (function->getReturnType() != returnValue->getType())
+    {
+      if (returnValue->getType() == builder.getFloatTy() && function->getReturnType() == builder.getInt32Ty())
+        returnValue = builder.CreateFPToSI(returnValue, function->getReturnType());
+      else if (returnValue->getType() == builder.getInt32Ty() && function->getReturnType() == builder.getFloatTy())
+        returnValue = builder.CreateSIToFP(returnValue, function->getReturnType());
+      else if (returnValue->getType() == builder.getInt1Ty() && function->getReturnType() == builder.getInt32Ty())
+        returnValue = builder.CreateZExt(returnValue, function->getReturnType());
+      else if (returnValue->getType() == builder.getInt32Ty() && function->getReturnType() == builder.getInt1Ty())
+        returnValue = builder.CreateTrunc(returnValue, function->getReturnType());
+      else
+      {
+        lexer_handle.reportError("Return Value incompatible with Return Type");
+        return false;
+      }
+    }
     builder.CreateRet(returnValue);
     returned_flag_for_if = true;
     return true;
@@ -395,11 +412,6 @@ bool Parser::return_statement()
 bool Parser::procedure_call(token &proc, llvm::Value *&returnValue)
 {
   llvm::Function *calleeFunc = module.getFunction(proc.tokenMark.stringValue);
-  if (!calleeFunc)
-  {
-    // Error: The function is not defined
-    // return false;
-  }
   std::vector<llvm::Value *> arguments;
   if (optional_scan_assume((token_type)')'))
   {
@@ -410,8 +422,8 @@ bool Parser::procedure_call(token &proc, llvm::Value *&returnValue)
   {
     if (scan_assume((token_type)')'))
     {
+      // Perform argument declaration and call parametes type check
       returnValue = builder.CreateCall(calleeFunc, arguments);
-      // Process the returnValue if needed
       return true;
     }
   }
@@ -439,40 +451,54 @@ bool Parser::cond_expression(llvm::Value *&result)
   token exp_result;
   if (expression(exp_result, result))
   {
-    return true;
+    if (result->getType() == builder.getInt1Ty())
+      return true;
+    else if (result->getType() == builder.getInt32Ty())
+    {
+      result = builder.CreateTrunc(result, builder.getInt1Ty());
+      return true;
+    }
+    else
+    {
+      lexer_handle.reportError("Conditional Expression not evaluating to Integer or Boolean value");
+      return false;
+    }
   }
   else
+  {
+    lexer_handle.reportError("Conditional Expression not found");
     return false;
+  }
 }
 
 bool Parser::expression(token &exp_result, llvm::Value *&value)
 {
-  optional_scan_assume((token_type)'!'); // Might be replaced if not is a keyword
+  token op;
+  bool negation = optional_scan_assume((token_type)'!'); // Might be replaced if not is a keyword
   if (arithOp(exp_result, value))
   {
-    if (optional_scan_assume((token_type)'|') || optional_scan_assume((token_type)'&'))
+    if (optional_scan_assume((token_type)'|', op) || optional_scan_assume((token_type)'&', op))
     {
       llvm::Value *secondValue = nullptr;
-      bool isOr = exp_result.type == (token_type)'|';
+      bool isOr = op.type == (token_type)'|';
 
       // Recursive call to handle the second part of the expression
       if (expression(exp_result, secondValue))
       {
-        // Generate LLVM IR for logical OR or AND
         if (isOr)
-        {
           value = builder.CreateOr(value, secondValue, "ortmp");
-        }
         else
-        {
           value = builder.CreateAnd(value, secondValue, "andtmp");
-        }
+        if (negation)
+          value = builder.CreateNot(value);
         return true;
       }
       return false;
     }
     else
     {
+      if (negation)
+        value = builder.CreateNot(value);
       return true;
     }
   }
@@ -657,15 +683,17 @@ bool Parser::factor(token &var, llvm::Value *&value)
         return true;
       if (optional_scan_assume((token_type)'['))
       {
-        llvm::Type *datatype = getLLVMType(var.dataType);
+        llvm::Type *datatype = llvm::ArrayType::get(llvm::Type::getInt32Ty(context), 3);
         token result;
         llvm::Value *size;
         if (expression(result, size) && scan_assume((token_type)']'))
         {
-          llvm::Value *zeroIndex = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
-          llvm::Value *indices[] = {zeroIndex, size}; // Index into the array
+          llvm::Value *indices[] = {
+              llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0), // Index 0
+              size                                                        // Index X
+          };
           llvm::Value *pointer = builder.CreateGEP(datatype, var.llvm_value, indices);
-          value = builder.CreateLoad(pointer->getType(), pointer);
+          value = builder.CreateLoad(getLLVMType(var.dataType), pointer);
           return true;
         }
       }
