@@ -106,7 +106,10 @@ bool Parser::program_body()
       return true;
     }
     else
+    {
+      lexer_handle.reportWarning("Main program body not found, output is unlikely to be produced");
       return false;
+    }
   }
   return resync(PROGRAM_RW);
 }
@@ -170,7 +173,7 @@ bool Parser::procedure_header(token &proc)
     symbols->enterScope();
     if (scan_assume((token_type)'(') && parameter_list(proc.argType) && scan_assume((token_type)')'))
     {
-      symbols->CompleteDeclPrevtoken(proc); // For outer Scope
+      // symbols->CompleteDeclPrevtoken(proc); // For outer Scope
       symbols->Completetoken(proc);
       std::vector<llvm::Type *> llvmargs;
       for (auto &argInfo : proc.argType)
@@ -224,7 +227,7 @@ bool Parser::parameter_list(std::vector<token> &argType)
   if (optional_scan_assume(VARIABLE_RW))
   {
     token arg;
-    auto valid = parameter(arg);
+    auto valid = variable_declaration(arg);
     symbols->Completetoken(arg);
     argType.push_back(arg);
     if (optional_scan_assume((token_type)','))
@@ -235,12 +238,6 @@ bool Parser::parameter_list(std::vector<token> &argType)
     return true;
 }
 
-bool Parser::parameter(token &param)
-{
-  auto temp = variable_declaration(param);
-  return temp;
-}
-
 bool Parser::variable_declaration(token &var)
 {
   if (scan_assume(IDENTIFIER, var, true) && scan_assume(TYPE_SEPERATOR) && type_mark(var.dataType))
@@ -249,15 +246,25 @@ bool Parser::variable_declaration(token &var)
     if (optional_scan_assume((token_type)'[') && scan_assume(INTEGER_VAL, temp))
     {
       var.size = temp.tokenMark.intValue;
-      if (!scan_assume((token_type)']'))
+      if (var.size <= 0)
       {
+        lexer_handle.reportError("Array size must be greater than or equal to 0");
+        return false;
+      }
+      else if (!scan_assume((token_type)']'))
+      {
+        lexer_handle.reportWarning("Array variable declaration not proper");
         resync((token_type)']');
         return false;
       }
     }
     return true;
   }
-  return false;
+  else
+  {
+    lexer_handle.reportError("Variable declaration not per syntax");
+    return false;
+  }
 }
 
 bool Parser::statement()
@@ -336,12 +343,21 @@ bool Parser::destination(token &var, llvm::Value *&value)
     llvm::Value *index = nullptr; // Fixed: Initialize index
     if (expression(result, index) && scan_assume((token_type)']'))
     {
-      llvm::Type *datatype = llvm::ArrayType::get(llvm::Type::getInt32Ty(context), 3);
+      llvm::Type *datatype = var.llvm_value->getType()->getArrayElementType();
+      if (result.type == INTEGER_VAL && result.tokenMark.intValue >= datatype->getArrayNumElements())
+      {
+        lexer_handle.reportError("Out of Bound error or array on LHS");
+        return false;
+      }
       llvm::Value *indices[] = {llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0), index};
       value = builder.CreateGEP(datatype, var.llvm_value, indices);
       return true;
     }
-    return false; // Added: Return false if array index parsing fails
+    else
+    {
+      lexer_handle.reportError("Index parse for array on LHS failed");
+      return false; // Added: Return false if array index parsing fails
+    }
   }
   return true;
 }
@@ -406,7 +422,11 @@ bool Parser::return_statement()
     returned_flag_for_if = true;
     return true;
   }
-  return false;
+  else
+  {
+    lexer_handle.reportError("Found return token but no return value found");
+    return false;
+  }
 }
 
 bool Parser::procedure_call(token &proc, llvm::Value *&returnValue)
@@ -422,9 +442,32 @@ bool Parser::procedure_call(token &proc, llvm::Value *&returnValue)
   {
     if (scan_assume((token_type)')'))
     {
-      // Perform argument declaration and call parametes type check
-      returnValue = builder.CreateCall(calleeFunc, arguments);
-      return true;
+      if (calleeFunc->arg_size() != arguments.size())
+      {
+        lexer_handle.reportError("No of arguments passed to function not as per function definition");
+        return false;
+      }
+      else
+      {
+        size_t i = 0;
+        for (llvm::Function::arg_iterator argIter = calleeFunc->arg_begin(); argIter != calleeFunc->arg_end(); ++argIter, ++i)
+        {
+          llvm::Argument *arg = &(*argIter);
+          llvm::Type *argType = arg->getType();
+          if (argType != arguments[i]->getType())
+          {
+            lexer_handle.reportError("Type mismatch between argument and function definition");
+            return false;
+          }
+        }
+        returnValue = builder.CreateCall(calleeFunc, arguments);
+        return true;
+      }
+    }
+    else
+    {
+      lexer_handle.reportError("Function call arguments not defined properly");
+      return false;
     }
   }
   return false;
@@ -687,11 +730,16 @@ bool Parser::factor(token &var, llvm::Value *&value)
         return true;
       if (optional_scan_assume((token_type)'['))
       {
-        llvm::Type *datatype = llvm::ArrayType::get(llvm::Type::getInt32Ty(context), 3);
         token result;
         llvm::Value *size;
         if (expression(result, size) && scan_assume((token_type)']'))
         {
+          llvm::Type *datatype = var.llvm_value->getType()->getArrayElementType();
+          if (result.type == INTEGER_VAL && result.tokenMark.intValue >= datatype->getArrayNumElements())
+          {
+            lexer_handle.reportError("Out of Bound error or array on RHS");
+            return false;
+          }
           llvm::Value *indices[] = {llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0), size};
           llvm::Value *pointer = builder.CreateGEP(datatype, var.llvm_value, indices);
           value = builder.CreateLoad(getLLVMType(var.dataType), pointer);
@@ -732,270 +780,4 @@ llvm::Type *Parser::getLLVMType(token_type type)
   default:
     return nullptr; // Unknown type
   }
-}
-
-void Parser::printf()
-{
-  llvm::FunctionType *printfType = llvm::FunctionType::get(llvm::Type::getInt32Ty(context), llvm::Type::getInt8PtrTy(context), true);
-  llvm::Function *printfFunc = llvm::Function::Create(printfType, llvm::Function::ExternalLinkage, "printf", &module);
-}
-
-void Parser::scanf()
-{
-  llvm::FunctionType *scanfType = llvm::FunctionType::get(llvm::Type::getInt32Ty(context), llvm::Type::getInt8PtrTy(context), true);
-  llvm::Function *scanfFunc = llvm::Function::Create(scanfType, llvm::Function::ExternalLinkage, "scanf", &module);
-}
-
-void Parser::malloc()
-{
-  llvm::FunctionType *mallocType = llvm::FunctionType::get(llvm::PointerType::get(llvm::IntegerType::get(context, 8), 0), {llvm::IntegerType::get(context, 64)}, false);
-  llvm::Function *mallocFunc = llvm::Function::Create(mallocType, llvm::Function::ExternalLinkage, "malloc", module);
-}
-
-void Parser::strcmp()
-{
-  llvm::Type *i8PtrType = llvm::Type::getInt8PtrTy(context);
-  llvm::Type *strcmpArgTypes[] = {i8PtrType, i8PtrType};
-  llvm::FunctionType *strcmpType = llvm::FunctionType::get(llvm::Type::getInt32Ty(context), strcmpArgTypes, false);
-  llvm::Function *strcmpFunc = llvm::Function::Create(strcmpType, llvm::Function::ExternalLinkage, "strcmp", &module);
-}
-
-void Parser::putinteger()
-{
-  llvm::Function *printfFunc = module.getFunction("printf");
-
-  // Define the putinteger function
-  llvm::FunctionType *putintegerType = llvm::FunctionType::get(llvm::Type::getInt1Ty(context), llvm::Type::getInt32Ty(context), false);
-  llvm::Function *putintegerFunc = llvm::Function::Create(putintegerType, llvm::Function::ExternalLinkage, "putinteger", &module);
-  llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "", putintegerFunc);
-  builder.SetInsertPoint(entryBlock);
-
-  // Create format string constant
-  llvm::Constant *formatStr = llvm::ConstantDataArray::getString(context, "%d\n");
-  llvm::GlobalVariable *formatVar = new llvm::GlobalVariable(module, formatStr->getType(), true, llvm::GlobalValue::PrivateLinkage, formatStr);
-  llvm::Value *zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
-  llvm::Value *indices[] = {zero, zero};
-  llvm::Constant *formatPtr = llvm::ConstantExpr::getGetElementPtr(formatStr->getType(), formatVar, indices);
-
-  // Call printf function
-  llvm::Value *value = putintegerFunc->args().begin();
-  llvm::Value *printfArgs[] = {formatPtr, value};
-  builder.CreateCall(printfFunc, printfArgs);
-  builder.CreateRet(builder.getInt1(1));
-}
-
-void Parser::putfloat()
-{
-  llvm::Function *printfFunc = module.getFunction("printf");
-
-  // Define the putfloat function
-  llvm::FunctionType *putfloatType = llvm::FunctionType::get(llvm::Type::getInt1Ty(context), llvm::Type::getFloatTy(context), false);
-  llvm::Function *putfloatFunc = llvm::Function::Create(putfloatType, llvm::Function::ExternalLinkage, "putfloat", &module);
-  llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "", putfloatFunc);
-  builder.SetInsertPoint(entryBlock);
-
-  // Create format string constant
-  llvm::Constant *formatStr = llvm::ConstantDataArray::getString(context, "%f\n");
-  llvm::GlobalVariable *formatVar = new llvm::GlobalVariable(module, formatStr->getType(), true, llvm::GlobalValue::PrivateLinkage, formatStr);
-  llvm::Value *zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
-  llvm::Value *indices[] = {zero, zero};
-  llvm::Constant *formatPtr = llvm::ConstantExpr::getGetElementPtr(formatStr->getType(), formatVar, indices);
-
-  // Call printf function with correct format specifier for float
-  llvm::Value *value = putfloatFunc->args().begin();
-  llvm::Type *doubleTy = llvm::Type::getDoubleTy(context);
-  llvm::Value *convertedValue = builder.CreateFPExt(value, doubleTy, "");
-  llvm::Value *printfArgs[] = {formatPtr, convertedValue};
-  builder.CreateCall(printfFunc, printfArgs);
-  builder.CreateRet(builder.getInt1(1));
-}
-
-void Parser::putbool()
-{
-  llvm::Function *printfFunc = module.getFunction("printf");
-
-  // Define the putbool function
-  llvm::FunctionType *putboolType = llvm::FunctionType::get(llvm::Type::getInt1Ty(context), llvm::Type::getInt1Ty(context), false);
-  llvm::Function *putboolFunc = llvm::Function::Create(putboolType, llvm::Function::ExternalLinkage, "putbool", &module);
-  llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "", putboolFunc);
-  builder.SetInsertPoint(entryBlock);
-
-  // Create format string constant
-  llvm::Constant *formatStr = llvm::ConstantDataArray::getString(context, "%d\n");
-  llvm::GlobalVariable *formatVar = new llvm::GlobalVariable(module, formatStr->getType(), true, llvm::GlobalValue::PrivateLinkage, formatStr);
-  llvm::Value *zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
-  llvm::Value *indices[] = {zero, zero};
-  llvm::Constant *formatPtr = llvm::ConstantExpr::getGetElementPtr(formatStr->getType(), formatVar, indices);
-
-  // Call printf function
-  llvm::Value *value = putboolFunc->args().begin();
-  llvm::Value *printfArgs[] = {formatPtr, value};
-  builder.CreateCall(printfFunc, printfArgs);
-  builder.CreateRet(builder.getInt1(1));
-}
-
-void Parser::putstring()
-{
-  llvm::Function *printfFunc = module.getFunction("printf");
-
-  // Define the putstring function
-  llvm::FunctionType *putstringType = llvm::FunctionType::get(llvm::Type::getInt1Ty(context), llvm::Type::getInt8PtrTy(context), false);
-  llvm::Function *putstringFunc = llvm::Function::Create(putstringType, llvm::Function::ExternalLinkage, "putstring", &module);
-  llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "", putstringFunc);
-  builder.SetInsertPoint(entryBlock);
-
-  // Create format string constant
-  llvm::Constant *formatStr = llvm::ConstantDataArray::getString(context, "%s\n");
-  llvm::GlobalVariable *formatVar = new llvm::GlobalVariable(module, formatStr->getType(), true, llvm::GlobalValue::PrivateLinkage, formatStr);
-  llvm::Value *zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
-  llvm::Value *indices[] = {zero, zero};
-  llvm::Constant *formatPtr = llvm::ConstantExpr::getGetElementPtr(formatStr->getType(), formatVar, indices);
-
-  // Call printf function
-  llvm::Value *value = putstringFunc->args().begin();
-  llvm::Value *printfArgs[] = {formatPtr, value};
-  builder.CreateCall(printfFunc, printfArgs);
-  builder.CreateRet(builder.getInt1(1));
-}
-
-llvm::Value *Parser::getinteger()
-{
-  llvm::Function *scanfFunc = module.getFunction("scanf");
-
-  // Define the getinteger function
-  llvm::FunctionType *getintegerType = llvm::FunctionType::get(llvm::Type::getInt32Ty(context), false);
-  llvm::Function *getintegerFunc = llvm::Function::Create(getintegerType, llvm::Function::ExternalLinkage, "getinteger", &module);
-  llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "", getintegerFunc);
-  builder.SetInsertPoint(entryBlock);
-
-  // Create format string constant for scanf
-  llvm::Constant *formatStr = llvm::ConstantDataArray::getString(context, "%d");
-  llvm::GlobalVariable *formatVar = new llvm::GlobalVariable(module, formatStr->getType(), true, llvm::GlobalValue::PrivateLinkage, formatStr);
-  llvm::Value *zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
-  llvm::Value *indices[] = {zero, zero};
-  llvm::Constant *formatPtr = llvm::ConstantExpr::getGetElementPtr(formatStr->getType(), formatVar, indices);
-
-  // Allocate memory for the integer input
-  llvm::Value *alloca = builder.CreateAlloca(llvm::Type::getInt32Ty(context));
-
-  // Call scanf function
-  llvm::Value *scanfArgs[] = {formatPtr, alloca};
-  builder.CreateCall(scanfFunc, scanfArgs);
-
-  // Load and return the parsed integer
-  llvm::Value *intValue = builder.CreateLoad(builder.getInt32Ty(), alloca);
-  builder.CreateRet(intValue);
-  return getintegerFunc;
-}
-
-llvm::Value *Parser::getfloat()
-{
-  llvm::Function *scanfFunc = module.getFunction("scanf");
-
-  // Define the getfloat function
-  llvm::FunctionType *getfloatType = llvm::FunctionType::get(llvm::Type::getFloatTy(context), false);
-  llvm::Function *getfloatFunc = llvm::Function::Create(getfloatType, llvm::Function::ExternalLinkage, "getfloat", &module);
-  llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "", getfloatFunc);
-  builder.SetInsertPoint(entryBlock);
-
-  // Create format string constant for scanf
-  llvm::Constant *formatStr = llvm::ConstantDataArray::getString(context, "%f");
-  llvm::GlobalVariable *formatVar = new llvm::GlobalVariable(module, formatStr->getType(), true, llvm::GlobalValue::PrivateLinkage, formatStr);
-  llvm::Value *zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
-  llvm::Value *indices[] = {zero, zero};
-  llvm::Constant *formatPtr = llvm::ConstantExpr::getGetElementPtr(formatStr->getType(), formatVar, indices);
-
-  // Allocate memory for the float input
-  llvm::Value *alloca = builder.CreateAlloca(llvm::Type::getFloatTy(context));
-
-  // Call scanf function
-  llvm::Value *scanfArgs[] = {formatPtr, alloca};
-  builder.CreateCall(scanfFunc, scanfArgs);
-
-  // Load and return the parsed float
-  llvm::Value *floatValue = builder.CreateLoad(builder.getFloatTy(), alloca);
-  builder.CreateRet(floatValue);
-  return getfloatFunc;
-}
-
-llvm::Value *Parser::getbool()
-{
-  llvm::Function *scanfFunc = module.getFunction("scanf");
-
-  // Define the getbool function
-  llvm::FunctionType *getboolType = llvm::FunctionType::get(llvm::Type::getInt1Ty(context), false);
-  llvm::Function *getboolFunc = llvm::Function::Create(getboolType, llvm::Function::ExternalLinkage, "getbool", &module);
-  llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "", getboolFunc);
-  builder.SetInsertPoint(entryBlock);
-
-  // Create format string constant for scanf
-  llvm::Constant *formatStr = llvm::ConstantDataArray::getString(context, "%d");
-  llvm::GlobalVariable *formatVar = new llvm::GlobalVariable(module, formatStr->getType(), true, llvm::GlobalValue::PrivateLinkage, formatStr);
-  llvm::Value *zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
-  llvm::Value *indices[] = {zero, zero};
-  llvm::Constant *formatPtr = llvm::ConstantExpr::getGetElementPtr(formatStr->getType(), formatVar, indices);
-
-  // Allocate memory for the bool input
-  llvm::Value *alloca = builder.CreateAlloca(llvm::Type::getInt32Ty(context));
-  // llvm::Value *alloca_2 = builder.getInt32(0);
-
-  // Call scanf function
-  llvm::Value *scanfArgs[] = {formatPtr, alloca};
-  builder.CreateCall(scanfFunc, scanfArgs);
-  llvm::Value *scanf_result = builder.CreateLoad(builder.getInt32Ty(), alloca);
-
-  // Load and return the parsed bool
-  // llvm::Value *result=builder.CreateICmp(llvm::CmpInst::ICMP_NE, alloca, alloca_2, "");
-  llvm::Value *result = builder.CreateICmpNE(scanf_result, builder.getInt32(0), "");
-  builder.CreateRet(result);
-  return getboolFunc;
-}
-
-llvm::Value *Parser::getstring()
-{
-  llvm::Function *scanfFunc = module.getFunction("scanf");
-  llvm::Function *mallocFunc = module.getFunction("malloc");
-  llvm::FunctionType *scanfType = llvm::FunctionType::get(llvm::IntegerType::get(context, 32), llvm::PointerType::get(llvm::IntegerType::get(context, 8), 0), true);
-
-  // Define the getstring function
-  llvm::FunctionType *getstringType = llvm::FunctionType::get(llvm::PointerType::get(llvm::IntegerType::get(context, 8), 0), {}, false);
-  llvm::Function *getstringFunc = llvm::Function::Create(getstringType, llvm::GlobalValue::LinkageTypes::ExternalLinkage, "getstring", module);
-  llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "", getstringFunc);
-  builder.SetInsertPoint(entryBlock);
-
-  // Initialize the variable and allocate memory using malloc
-  llvm::AllocaInst *name = builder.CreateAlloca(llvm::Type::getInt8PtrTy(context), nullptr, "name");
-  llvm::CallInst *mallocCall = builder.CreateCall(mallocFunc, llvm::ConstantInt::get(context, llvm::APInt(64, 256)), "malloc");
-  builder.CreateStore(mallocCall, name);
-  llvm::LoadInst *nameLoad = builder.CreateLoad(llvm::PointerType::get(llvm::IntegerType::get(context, 8), 0), name);
-
-  llvm::Constant *formatStr = llvm::ConstantDataArray::getString(context, "%s");
-  llvm::GlobalVariable *formatVar = new llvm::GlobalVariable(module, formatStr->getType(), true, llvm::GlobalValue::PrivateLinkage, formatStr);
-  llvm::Value *zero = llvm::ConstantInt::get(llvm::Type::getInt32Ty(context), 0);
-  llvm::Value *indices[] = {zero, zero};
-  llvm::Constant *formatPtr = llvm::ConstantExpr::getGetElementPtr(formatStr->getType(), formatVar, indices);
-
-  llvm::CallInst *scanfCall = builder.CreateCall(scanfFunc, {formatPtr, nameLoad});
-  builder.CreateRet(nameLoad);
-  return getstringFunc;
-}
-
-llvm::Value *Parser::sqrt()
-{
-  llvm::FunctionType *sqrtFuncType = llvm::FunctionType::get(llvm::Type::getFloatTy(context), llvm::Type::getInt32Ty(context), false);
-  llvm::Function *sqrtFunc = llvm::Function::Create(sqrtFuncType, llvm::Function::ExternalLinkage, "sqrt", &module);
-
-  llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "", sqrtFunc);
-  builder.SetInsertPoint(entryBlock);
-
-  // Get the argument value
-  llvm::Value *value = sqrtFunc->args().begin();
-  llvm::Value *floatValue = builder.CreateSIToFP(value, builder.getFloatTy(), "");
-
-  // Call the sqrt intrinsic function
-  llvm::Function *sqrtIntrinsic = llvm::Intrinsic::getDeclaration(&module, llvm::Intrinsic::sqrt, llvm::Type::getFloatTy(context));
-  llvm::Value *sqrtResult = builder.CreateCall(sqrtIntrinsic, floatValue, "");
-
-  builder.CreateRet(sqrtResult);
-  return sqrtFunc;
 }

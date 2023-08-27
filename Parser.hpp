@@ -137,7 +137,7 @@ public:
             current->symbol_table[search_for.tokenMark.stringValue] = search_for;
         return;
     };
-    void CompleteDeclPrevtoken(token &search_for)
+/*     void CompleteDeclPrevtoken(token &search_for)
     {
         auto glbfoundToken = global->symbol_table.find(search_for.tokenMark.stringValue);
         if (glbfoundToken != global->symbol_table.end())
@@ -148,7 +148,7 @@ public:
         auto foundToken = current->previous->symbol_table.find(search_for.tokenMark.stringValue);
         foundToken->second = search_for;
         return;
-    };
+    }; */
 };
 
 class Parser

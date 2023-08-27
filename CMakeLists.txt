@@ -9,7 +9,7 @@ set(CMAKE_CXX_FLAGS)
 
 # Add the library target
 add_library(Lexer STATIC Lexer.cpp Lexer.hpp)
-add_library(Parser STATIC Parser.cpp Parser.hpp)
+add_library(Parser STATIC Parser_support.cpp Parser.cpp Parser.hpp)
 
 # Find LLVM and include its directories
 find_package(LLVM REQUIRED CONFIG)
