@@ -31,7 +31,7 @@ void Lexer::reportError(const std::string &error)
   std::cerr << "ERROR at line " << getLineCnt() << ": " << error << std::endl;
 }
 
-void Lexer::reportWarning(const std::string &warning) { std::cout << "WARNING at linel" << getLineCnt() << " " << warning; }
+void Lexer::reportWarning(const std::string &warning) { std::cout << "WARNING at line " << getLineCnt() << " " << warning; }
 
 bool Lexer::getErrorStatus() { return errorStatus; }
 
