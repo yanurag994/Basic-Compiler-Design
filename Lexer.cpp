@@ -1,12 +1,4 @@
 #include "./Lexer.hpp"
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <unistd.h>
-#include <map>
-#include <set>
-#include <vector>
-#include <sstream>
 
 char Lexer::getChar()
 {
@@ -31,7 +23,7 @@ void Lexer::reportError(const std::string &error)
   std::cerr << "ERROR at line " << getLineCnt() << ": " << error << std::endl;
 }
 
-void Lexer::reportWarning(const std::string &warning) { std::cout << "WARNING at line " << getLineCnt() << " " << warning; }
+void Lexer::reportWarning(const std::string &warning) { std::cout << "WARNING at line " << getLineCnt() << " " << warning << std::endl; }
 
 bool Lexer::getErrorStatus() { return errorStatus; }
 

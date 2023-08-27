@@ -14,7 +14,10 @@ int main(int argc, char *argv[])
     handle.initialize();
     handle.program();
     if (!handle.lexer_handle.errorStatus)
+    {
+        std::cout << "Completed Code Generation" << std::endl;
         handle.execute();
+    }
     else
     {
         std::cout << "Program Parse Failed, Code will not execute" << std::endl;

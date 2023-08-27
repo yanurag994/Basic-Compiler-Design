@@ -1,8 +1,7 @@
+#pragma once
 #include "./Lexer.hpp"
-#include "./Scope.cpp"
+#include "./Scope.hpp"
 #include <vector>
-#include <sstream>
-#include <cstring>
 #include <iostream>
 #include "llvm/IR/Module.h"
 #include "llvm/IR/IRBuilder.h"
@@ -30,14 +29,12 @@ private:
     bool scan_assume(token_type, token &, bool);
     bool optional_scan_assume(token_type, token &, bool);
     bool resync(token_type, bool);
-    bool typeCheck(token &, token &, token &, token_type);
     bool program_header();
     bool program_body();
     bool declaration();
     bool procedure_declaration(token &);
     bool procedure_header(token &);
     bool parameter_list(std::vector<token> &);
-    bool parameter(token &);
     bool procedure_body(token &);
     bool variable_declaration(token &);
     bool type_mark(token_type &);
@@ -74,7 +71,6 @@ private:
 
 public:
     Lexer lexer_handle;
-    std::stringstream global_decl;
     bool program();
     Symbols *symbols;
     Parser(const std::string &inputFileName, const std::string &outputFileName) : lexer_handle(inputFileName), builder(context), module(inputFileName, context)
@@ -105,16 +101,13 @@ public:
     };
     void execute()
     {
-        bool hasErrors = llvm::verifyModule(module, console);
         module.print(*dest, nullptr);
-        int k;
-        std::cout << "Completed Code Generation" << std::endl;
-        if (!hasErrors)
+        if (!llvm::verifyModule(module, console))
         {
             llvm::ExecutionEngine *engine = llvm::EngineBuilder(std::unique_ptr<llvm::Module>(&module)).create();
             engine->runFunction(mainFunc, {});
-
             std::cout << "Completed Execution, Enter any number to exit" << std::endl;
+            int k;
             std::cin >> k;
         }
         else

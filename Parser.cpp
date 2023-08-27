@@ -1,7 +1,4 @@
 #include "./Parser.hpp"
-#include <sstream>
-#include <string>
-#include <unistd.h>
 
 bool Parser::scan_assume(token_type type, token &returned, bool definition = false)
 {
@@ -11,9 +8,7 @@ bool Parser::scan_assume(token_type type, token &returned, bool definition = fal
   }
   else
   {
-    std::stringstream ss;
-    ss << "At token " << cur_tk.type << ", expecting token " << type << std::endl;
-    lexer_handle.reportError(ss.str());
+    lexer_handle.reportError("At token " + std::to_string(cur_tk.type) + ", expecting token " + std::to_string(type));
     return false;
   }
 }
@@ -53,9 +48,7 @@ bool Parser::scan_assume(token_type type)
   }
   else
   {
-    std::stringstream ss;
-    ss << "At token " << cur_tk.type << ", expecting token " << type << std::endl;
-    lexer_handle.reportError(ss.str());
+    lexer_handle.reportError("At token " + std::to_string(cur_tk.type) + ", expecting token " + std::to_string(type));
     return false;
   }
 }
