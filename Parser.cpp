@@ -23,7 +23,17 @@ bool Parser::optional_scan_assume(token_type type, token &returned, bool definit
   if (cur_tk.type == type)
   {
     if (cur_tk.type == IDENTIFIER)
-      returned = symbols->HashLookup(cur_tk, global_flag, definition);
+    {
+      try
+      {
+        returned = symbols->HashLookup(cur_tk, global_flag, definition);
+      }
+      catch (const std::exception &e)
+      {
+        lexer_handle.reportError(e.what());
+        return false;
+      }
+    }
     else
       returned = cur_tk;
     if (type != (token_type)'.')
@@ -245,10 +255,10 @@ bool Parser::parameter_list(std::vector<token> &argType)
         return true;
     }
     else
-      {
-        lexer_handle.reportError("Variable declaration started for procedure but never completed");
-        return false;
-      }
+    {
+      lexer_handle.reportError("Variable declaration started for procedure but never completed");
+      return false;
+    }
   }
   else
     return true;
@@ -353,6 +363,20 @@ bool Parser::assignment_statement(token &dest)
             newRHS = builder.CreateZExt(RHS, LHSType);
           else if (RHSType == builder.getInt32Ty() && LHSType == builder.getInt1Ty())
             newRHS = builder.CreateICmp(llvm::CmpInst::ICMP_NE, RHS, builder.getInt32(0), "");
+          if (LHSType->isVectorTy() && RHSType->isVectorTy())
+          {
+            if (LHSType->getArrayNumElements() == RHSType->getArrayNumElements())
+            {
+              if (RHSType->getArrayElementType() == builder.getFloatTy() && LHSType->getArrayElementType() == builder.getInt32Ty())
+                newRHS = builder.CreateFPToSI(RHS, LHSType);
+              else if (RHSType->getArrayElementType() == builder.getInt32Ty() && LHSType->getArrayElementType() == builder.getFloatTy())
+                newRHS = builder.CreateSIToFP(RHS, LHSType);
+            }
+            else
+            {
+              lexer_handle.reportError("Array on LHS and RHS are of different sizes");
+            }
+          }
           if (newRHS)
             RHS = newRHS;
           else
@@ -600,13 +624,29 @@ bool Parser::arithOp(token &var, llvm::Value *&value)
             value_2 = builder.CreateSIToFP(value_2, builder.getFloatTy());
           else if (value_1->getType() == builder.getInt32Ty() && value_1->getType() == builder.getFloatTy())
             value_1 = builder.CreateSIToFP(value_1, builder.getFloatTy());
-          else if (value_1->getType()->getArrayElementType() == builder.getFloatTy() && value_2->getType()->getArrayElementType() == builder.getInt32Ty())
-            value_2 = builder.CreateSIToFP(value_2, value_1->getType());
-          else if (value_1->getType()->getArrayElementType() == builder.getInt32Ty() && value_1->getType()->getArrayElementType() == builder.getFloatTy())
-            value_1 = builder.CreateSIToFP(value_1, builder.getFloatTy());
+          if (value_1->getType()->isVectorTy() && value_2->getType()->isVectorTy())
+          {
+            if (value_1->getType()->getArrayNumElements() != value_2->getType()->getArrayNumElements())
+            {
+              lexer_handle.reportError("Aarithmetic operation not allowed on arrays of different sizes");
+              return false;
+            }
+            else if (value_1->getType()->getArrayElementType() == builder.getFloatTy() && value_2->getType()->getArrayElementType() == builder.getInt32Ty())
+              value_2 = builder.CreateSIToFP(value_2, value_1->getType());
+            else if (value_1->getType()->getArrayElementType() == builder.getInt32Ty() && value_2->getType()->getArrayElementType() == builder.getFloatTy())
+              value_1 = builder.CreateSIToFP(value_1, value_2->getType());
+          }
           else
           {
             lexer_handle.reportError("Datatypes not suitable for mathematical op");
+            return false;
+          }
+        }
+        else if (value_1->getType()->isVectorTy() && value_2->getType()->isVectorTy())
+        {
+          if (value_1->getType()->getArrayNumElements() != value_2->getType()->getArrayNumElements())
+          {
+            lexer_handle.reportError("Arithmetic operation not allowed on arrays of different sizes");
             return false;
           }
         }

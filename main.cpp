@@ -3,7 +3,6 @@
 #include <iostream>
 #include <fstream> // Include the header for file operations
 
-
 int main(int argc, char *argv[])
 {
     if (argc < 3)
@@ -11,10 +10,14 @@ int main(int argc, char *argv[])
         std::cerr << "Please provide both input and output file paths as arguments.\n";
         return 1;
     }
-    //Parser handle(argv[1]);
     Parser handle(argv[1], argv[2]);
     handle.initialize();
     handle.program();
-    handle.execute();
+    if (!handle.lexer_handle.errorStatus)
+        handle.execute();
+    else
+    {
+        std::cout << "Program Parse Failed, Code will not execute" << std::endl;
+    }
     return 0;
 };

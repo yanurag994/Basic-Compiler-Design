@@ -9,6 +9,7 @@ set(CMAKE_CXX_FLAGS)
 
 # Add the library target
 add_library(Lexer STATIC Lexer.cpp Lexer.hpp)
+add_library(Scope STATIC Scope.cpp Scope.hpp)
 add_library(Parser STATIC Parser_support.cpp Parser.cpp Parser.hpp)
 
 # Find LLVM and include its directories
@@ -18,4 +19,4 @@ add_definitions(${LLVM_DEFINITIONS})
 
 # Add the executable target and link it with the library
 add_executable(Compiler main.cpp)
-target_link_libraries(Compiler PRIVATE Lexer Parser LLVM)
+target_link_libraries(Compiler PRIVATE Lexer Parser Scope LLVM)
