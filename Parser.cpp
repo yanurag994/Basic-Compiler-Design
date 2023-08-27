@@ -128,7 +128,7 @@ bool Parser::declaration()
       llvm::Value *variable;
       llvm::Value *array_size = nullptr;
       if (decl.size != -1)
-        dataType = llvm::ArrayType::get(dataType, decl.size);
+        dataType = llvm::VectorType::get(dataType, (unsigned)decl.size, false);
       if (decl.global_var)
       {
         llvm::Constant *zeroInitializer = llvm::Constant::getNullValue(dataType);
@@ -330,7 +330,7 @@ bool Parser::assignment_statement(token &dest)
         llvm::Type *RHSType = RHS->getType();
         if (LHSType != RHSType)
         {
-           llvm::Value *newRHS = nullptr;
+          llvm::Value *newRHS = nullptr;
           if (RHSType == builder.getFloatTy() && LHSType == builder.getInt32Ty())
             newRHS = builder.CreateFPToSI(RHS, LHSType);
           else if (RHSType == builder.getInt32Ty() && LHSType == builder.getFloatTy())
@@ -338,7 +338,7 @@ bool Parser::assignment_statement(token &dest)
           else if (RHSType == builder.getInt1Ty() && LHSType == builder.getInt32Ty())
             newRHS = builder.CreateZExt(RHS, LHSType);
           else if (RHSType == builder.getInt32Ty() && LHSType == builder.getInt1Ty())
-            newRHS = builder.CreateTrunc(RHS, LHSType);
+            newRHS = builder.CreateICmp(llvm::CmpInst::ICMP_NE, RHS, builder.getInt32(0), "");
           if (newRHS)
             RHS = newRHS;
           else
@@ -432,7 +432,7 @@ bool Parser::return_statement()
       else if (returnValue->getType() == builder.getInt1Ty() && function->getReturnType() == builder.getInt32Ty())
         returnValue = builder.CreateZExt(returnValue, function->getReturnType());
       else if (returnValue->getType() == builder.getInt32Ty() && function->getReturnType() == builder.getInt1Ty())
-        returnValue = builder.CreateTrunc(returnValue, function->getReturnType());
+        returnValue = builder.CreateICmp(llvm::CmpInst::ICMP_NE, returnValue, builder.getInt32(0), "");
       else
       {
         lexer_handle.reportError("Return Value incompatible with Return Type");
@@ -519,7 +519,7 @@ bool Parser::cond_expression(llvm::Value *&result)
       return true;
     else if (result->getType() == builder.getInt32Ty())
     {
-      result = builder.CreateTrunc(result, builder.getInt1Ty());
+      result = builder.CreateICmp(llvm::CmpInst::ICMP_NE, result, builder.getInt32(0), "");
       return true;
     }
     else
@@ -572,46 +572,52 @@ bool Parser::arithOp(token &var, llvm::Value *&value)
 {
   token term_1, op;
   llvm::Value *value_1 = nullptr;
-  // Parse the first term using relation
   if (relation(term_1, value_1))
   {
-    // Handle optional arithmetic operations in a loop
-    while (optional_scan_assume((token_type)'+', op) || optional_scan_assume((token_type)'-', op) ||
-           optional_scan_assume((token_type)'*', op) || optional_scan_assume((token_type)'/', op))
+    while (optional_scan_assume((token_type)'+', op) || optional_scan_assume((token_type)'-', op) || optional_scan_assume((token_type)'*', op) || optional_scan_assume((token_type)'/', op))
     {
       token term_2;
       llvm::Value *value_2 = nullptr;
-
-      // Parse the next term using relation
       if (relation(term_2, value_2))
       {
-        // Generate LLVM IR for the arithmetic operation based on the operator
+        if (value_1->getType() != value_2->getType())
+        {
+          if (value_1->getType() == builder.getFloatTy() && value_2->getType() == builder.getInt32Ty())
+            value_2 = builder.CreateSIToFP(value_2, builder.getFloatTy());
+          else if (value_1->getType() == builder.getInt32Ty() && value_1->getType() == builder.getFloatTy())
+            value_1 = builder.CreateSIToFP(value_1, builder.getFloatTy());
+          else if (value_1->getType()->getArrayElementType() == builder.getFloatTy() && value_2->getType()->getArrayElementType() == builder.getInt32Ty())
+            value_2 = builder.CreateSIToFP(value_2, value_1->getType());
+          else if (value_1->getType()->getArrayElementType() == builder.getInt32Ty() && value_1->getType()->getArrayElementType() == builder.getFloatTy())
+            value_1 = builder.CreateSIToFP(value_1, builder.getFloatTy());
+          else
+          {
+            lexer_handle.reportError("Datatypes not suitable for mathematical op");
+            return false;
+          }
+        }
         llvm::Instruction::BinaryOps binaryOp = llvm::Instruction::BinaryOpsEnd;
-        if (op.type == (token_type)'+')
-        {
+        bool float_compute = (value_1->getType() == builder.getFloatTy()) || (value_1->getType()->isVectorTy() && value_1->getType()->getArrayElementType() == builder.getFloatTy());
+        if (op.type == (token_type)'+' && float_compute)
+          binaryOp = llvm::Instruction::FAdd;
+        else if (op.type == (token_type)'-' && float_compute)
+          binaryOp = llvm::Instruction::FSub;
+        else if (op.type == (token_type)'*' && float_compute)
+          binaryOp = llvm::Instruction::FMul;
+        else if (op.type == (token_type)'/' && float_compute)
+          binaryOp = llvm::Instruction::FDiv;
+        else if (op.type == (token_type)'+')
           binaryOp = llvm::Instruction::Add;
-        }
         else if (op.type == (token_type)'-')
-        {
           binaryOp = llvm::Instruction::Sub;
-        }
         else if (op.type == (token_type)'*')
-        {
           binaryOp = llvm::Instruction::Mul;
-        }
         else if (op.type == (token_type)'/')
-        {
           binaryOp = llvm::Instruction::SDiv;
-        }
-
         if (binaryOp != llvm::Instruction::BinaryOpsEnd)
-        {
-          // Generate LLVM IR for the arithmetic operation
           value_1 = builder.CreateBinOp(binaryOp, value_1, value_2, "");
-        }
         else
         {
-          // Handle unsupported operator
           return false;
         }
       }
@@ -620,11 +626,8 @@ bool Parser::arithOp(token &var, llvm::Value *&value)
         return false;
       }
     }
-
-    // Assign the final result to the output parameter
     var = term_1;
     value = value_1;
-
     return true;
   }
 
@@ -771,7 +774,6 @@ bool Parser::factor(token &var, llvm::Value *&value)
       }
       else
       {
-        //value = builder.CreateLoad(getLLVMType(var.dataType), var.llvm_value);
         value = builder.CreateLoad(var.llvm_value->getType()->getPointerElementType(), var.llvm_value);
         if (isNegative)
           value = builder.CreateNeg(value, "");
