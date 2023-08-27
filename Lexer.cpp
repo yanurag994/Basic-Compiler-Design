@@ -83,6 +83,8 @@ token Lexer::scan()
         {
           while (nxtChar != '*' && nxtChar != '/' && nxtChar != EOF)
           {
+            if (nxtChar == '\n')
+              incLineCnt();
             nxtChar = getChar();
           }
           if (nxtChar == EOF) // Add check for EOF to avoid infinite loop
