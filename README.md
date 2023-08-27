@@ -1,0 +1,1 @@
+Array Bounds check not working when index is an expression

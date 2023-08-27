@@ -326,6 +326,27 @@ bool Parser::assignment_statement(token &dest)
       llvm::Value *RHS = nullptr;
       if (expression(result, RHS))
       {
+        llvm::Type *LHSType = LHS->getType()->getPointerElementType();
+        llvm::Type *RHSType = RHS->getType();
+        if (LHSType != RHSType)
+        {
+/*           llvm::Value *newRHS = nullptr;
+          if (RHSType == builder.getFloatTy() && LHSType == builder.getInt32Ty())
+            newRHS = builder.CreateFPToSI(RHS, LHSType);
+          else if (RHSType == builder.getInt32Ty() && LHSType == builder.getFloatTy())
+            newRHS = builder.CreateSIToFP(RHS, LHSType);
+          else if (RHSType == builder.getInt1Ty() && LHSType == builder.getInt32Ty())
+            newRHS = builder.CreateZExt(RHS, LHSType);
+          else if (RHSType == builder.getInt32Ty() && LHSType == builder.getInt1Ty())
+            newRHS = builder.CreateTrunc(RHS, LHSType);
+          if (newRHS)
+            RHS = newRHS;
+          else
+          {
+            lexer_handle.reportError("Incompatible datatypes when attempting to assign values to LHS");
+            return false;
+          } */
+        }
         builder.CreateStore(RHS, LHS);
         return true;
       }
@@ -751,6 +772,7 @@ bool Parser::factor(token &var, llvm::Value *&value)
       else
       {
         value = builder.CreateLoad(getLLVMType(var.dataType), var.llvm_value);
+        //value = builder.CreateLoad(var.llvm_value->getType()->getPointerElementType(), var.llvm_value);
         if (isNegative)
           value = builder.CreateNeg(value, "");
         return true;

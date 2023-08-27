@@ -297,7 +297,7 @@ token Lexer::scan()
   }
 
   case EOF:
-    reportError("Unexpected End Of File reached. Expected program to end with \'.\'");
+    reportWarning("Unexpected End Of File reached. Expected program to end with \'.\'");
     tk.type = T_EOF;
     break;
 
