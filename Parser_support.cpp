@@ -3,21 +3,21 @@
 void Parser::printf()
 {
   llvm::FunctionType *printfType = llvm::FunctionType::get(llvm::Type::getInt32Ty(context), llvm::Type::getInt8PtrTy(context), true);
-  llvm::Function *printfFunc = llvm::Function::Create(printfType, llvm::Function::ExternalLinkage, "printf", &module);
+  llvm::Function::Create(printfType, llvm::Function::ExternalLinkage, "printf", &module);
   return;
 }
 
 void Parser::scanf()
 {
   llvm::FunctionType *scanfType = llvm::FunctionType::get(llvm::Type::getInt32Ty(context), llvm::Type::getInt8PtrTy(context), true);
-  llvm::Function *scanfFunc = llvm::Function::Create(scanfType, llvm::Function::ExternalLinkage, "scanf", &module);
+  llvm::Function::Create(scanfType, llvm::Function::ExternalLinkage, "scanf", &module);
   return;
 }
 
 void Parser::malloc()
 {
   llvm::FunctionType *mallocType = llvm::FunctionType::get(llvm::PointerType::get(llvm::IntegerType::get(context, 8), 0), {llvm::IntegerType::get(context, 64)}, false);
-  llvm::Function *mallocFunc = llvm::Function::Create(mallocType, llvm::Function::ExternalLinkage, "malloc", module);
+  llvm::Function::Create(mallocType, llvm::Function::ExternalLinkage, "malloc", module);
   return;
 }
 
@@ -26,7 +26,7 @@ void Parser::strcmp()
   llvm::Type *i8PtrType = llvm::Type::getInt8PtrTy(context);
   llvm::Type *strcmpArgTypes[] = {i8PtrType, i8PtrType};
   llvm::FunctionType *strcmpType = llvm::FunctionType::get(llvm::Type::getInt32Ty(context), strcmpArgTypes, false);
-  llvm::Function *strcmpFunc = llvm::Function::Create(strcmpType, llvm::Function::ExternalLinkage, "strcmp", &module);
+  llvm::Function::Create(strcmpType, llvm::Function::ExternalLinkage, "strcmp", &module);
   return;
 }
 
@@ -229,7 +229,6 @@ llvm::Value *Parser::getstring()
 {
   llvm::Function *scanfFunc = module.getFunction("scanf");
   llvm::Function *mallocFunc = module.getFunction("malloc");
-  llvm::FunctionType *scanfType = llvm::FunctionType::get(llvm::IntegerType::get(context, 32), llvm::PointerType::get(llvm::IntegerType::get(context, 8), 0), true);
 
   // Define the getstring function
   llvm::FunctionType *getstringType = llvm::FunctionType::get(llvm::PointerType::get(llvm::IntegerType::get(context, 8), 0), {}, false);
@@ -249,7 +248,7 @@ llvm::Value *Parser::getstring()
   llvm::Value *indices[] = {zero, zero};
   llvm::Constant *formatPtr = llvm::ConstantExpr::getGetElementPtr(formatStr->getType(), formatVar, indices);
 
-  llvm::CallInst *scanfCall = builder.CreateCall(scanfFunc, {formatPtr, nameLoad});
+  builder.CreateCall(scanfFunc, {formatPtr, nameLoad});
   builder.CreateRet(nameLoad);
   return getstringFunc;
 }

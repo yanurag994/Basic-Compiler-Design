@@ -126,7 +126,6 @@ bool Parser::declaration()
     if (dataType)
     {
       llvm::Value *variable;
-      llvm::Value *array_size = nullptr;
       if (decl.size != -1)
         dataType = llvm::VectorType::get(dataType, (unsigned)decl.size, false);
       if (decl.global_var)
@@ -195,31 +194,40 @@ bool Parser::procedure_header(token &proc)
         builder.CreateStore(arg, allocaInst);
         ++argIt;
       }
-      while (declaration())
-        builder.SetInsertPoint(entryBlock);
-      if (scan_assume(BEGIN_RW))
-        ;
-      while (statement() && scan_assume((token_type)';'))
-        ;
-      if (scan_assume(END_RW) && scan_assume(PROCEDURE_RW) && scan_assume((token_type)';'))
-      {
-        symbols->exitScope();
-        return true;
-      }
-      lexer_handle.reportWarning("Resync not possible at this stage");
+      return true;
+    }
+    else
+    {
+      lexer_handle.reportError("Invalid Syntax for procedure arguments");
       return false;
     }
-    return false;
   }
   else
   {
+    lexer_handle.reportError("Procedure definition started but ended unexpectedly");
     return resync((token_type)')');
   }
 }
 
 bool Parser::procedure_body(token &proc)
 {
-  return true;
+  llvm::BasicBlock *entryBlock = builder.GetInsertBlock();
+  while (declaration())
+    builder.SetInsertPoint(entryBlock);
+  if (!scan_assume(BEGIN_RW))
+    lexer_handle.reportWarning("Begin keywork not found in procedure definition, procedure body might be enmpty");
+  while (statement() && scan_assume((token_type)';'))
+    ;
+  if (scan_assume(END_RW) && scan_assume(PROCEDURE_RW) && scan_assume((token_type)';'))
+  {
+    symbols->exitScope();
+    return true;
+  }
+  else
+  {
+    lexer_handle.reportWarning("Resync not possible at this stage");
+    return false;
+  }
 }
 
 bool Parser::parameter_list(std::vector<token> &argType)
@@ -227,12 +235,20 @@ bool Parser::parameter_list(std::vector<token> &argType)
   if (optional_scan_assume(VARIABLE_RW))
   {
     token arg;
-    auto valid = variable_declaration(arg);
-    symbols->Completetoken(arg);
-    argType.push_back(arg);
-    if (optional_scan_assume((token_type)','))
-      return parameter_list(argType);
-    return true;
+    if (variable_declaration(arg))
+    {
+      symbols->Completetoken(arg);
+      argType.push_back(arg);
+      if (optional_scan_assume((token_type)','))
+        return parameter_list(argType);
+      else
+        return true;
+    }
+    else
+      {
+        lexer_handle.reportError("Variable declaration started for procedure but never completed");
+        return false;
+      }
   }
   else
     return true;
@@ -297,7 +313,6 @@ bool Parser::if_statement()
       ;
     if (returned_flag_for_if == false)
       builder.CreateBr(mergeBlock);
-    returned_flag_for_if = false;
     function->getBasicBlockList().push_back(elseBlock);
     builder.SetInsertPoint(elseBlock);
     returned_flag_for_if = false;
@@ -306,7 +321,6 @@ bool Parser::if_statement()
         ;
     if (returned_flag_for_if == false)
       builder.CreateBr(mergeBlock);
-    returned_flag_for_if = false;
     function->getBasicBlockList().push_back(mergeBlock);
     builder.SetInsertPoint(mergeBlock);
     if (scan_assume(END_RW) && scan_assume(IF_RW))
@@ -365,7 +379,7 @@ bool Parser::destination(token &var, llvm::Value *&value)
     if (expression(result, index) && scan_assume((token_type)']'))
     {
       llvm::Type *datatype = var.llvm_value->getType()->getArrayElementType();
-      if (result.type == INTEGER_VAL && result.tokenMark.intValue >= datatype->getArrayNumElements())
+      if (result.type == INTEGER_VAL && result.tokenMark.intValue >= (int)datatype->getArrayNumElements())
       {
         lexer_handle.reportError("Out of Bound error or array on LHS");
         return false;
@@ -422,16 +436,16 @@ bool Parser::return_statement()
   llvm::Value *returnValue;
   if (expression(result, returnValue))
   {
-    llvm::Function *function = builder.GetInsertBlock()->getParent();
-    if (function->getReturnType() != returnValue->getType())
+    llvm::Type *returnType = builder.getCurrentFunctionReturnType();
+    if (returnType != returnValue->getType())
     {
-      if (returnValue->getType() == builder.getFloatTy() && function->getReturnType() == builder.getInt32Ty())
-        returnValue = builder.CreateFPToSI(returnValue, function->getReturnType());
-      else if (returnValue->getType() == builder.getInt32Ty() && function->getReturnType() == builder.getFloatTy())
-        returnValue = builder.CreateSIToFP(returnValue, function->getReturnType());
-      else if (returnValue->getType() == builder.getInt1Ty() && function->getReturnType() == builder.getInt32Ty())
-        returnValue = builder.CreateZExt(returnValue, function->getReturnType());
-      else if (returnValue->getType() == builder.getInt32Ty() && function->getReturnType() == builder.getInt1Ty())
+      if (returnValue->getType() == builder.getFloatTy() && returnType == builder.getInt32Ty())
+        returnValue = builder.CreateFPToSI(returnValue, returnType);
+      else if (returnValue->getType() == builder.getInt32Ty() && returnType == builder.getFloatTy())
+        returnValue = builder.CreateSIToFP(returnValue, returnType);
+      else if (returnValue->getType() == builder.getInt1Ty() && returnType == builder.getInt32Ty())
+        returnValue = builder.CreateZExt(returnValue, returnType);
+      else if (returnValue->getType() == builder.getInt32Ty() && returnType == builder.getInt1Ty())
         returnValue = builder.CreateICmp(llvm::CmpInst::ICMP_NE, returnValue, builder.getInt32(0), "");
       else
       {
@@ -759,7 +773,7 @@ bool Parser::factor(token &var, llvm::Value *&value)
         if (expression(result, size) && scan_assume((token_type)']'))
         {
           llvm::Type *datatype = var.llvm_value->getType()->getArrayElementType();
-          if (result.type == INTEGER_VAL && result.tokenMark.intValue >= datatype->getArrayNumElements())
+          if (result.type == INTEGER_VAL && result.tokenMark.intValue >= (int)datatype->getArrayNumElements())
           {
             lexer_handle.reportError("Out of Bound error or array on RHS");
             return false;

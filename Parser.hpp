@@ -137,28 +137,28 @@ public:
             current->symbol_table[search_for.tokenMark.stringValue] = search_for;
         return;
     };
-/*     void CompleteDeclPrevtoken(token &search_for)
-    {
-        auto glbfoundToken = global->symbol_table.find(search_for.tokenMark.stringValue);
-        if (glbfoundToken != global->symbol_table.end())
+    /*     void CompleteDeclPrevtoken(token &search_for)
         {
-            glbfoundToken->second = search_for;
+            auto glbfoundToken = global->symbol_table.find(search_for.tokenMark.stringValue);
+            if (glbfoundToken != global->symbol_table.end())
+            {
+                glbfoundToken->second = search_for;
+                return;
+            }
+            auto foundToken = current->previous->symbol_table.find(search_for.tokenMark.stringValue);
+            foundToken->second = search_for;
             return;
-        }
-        auto foundToken = current->previous->symbol_table.find(search_for.tokenMark.stringValue);
-        foundToken->second = search_for;
-        return;
-    }; */
+        }; */
 };
 
 class Parser
 {
 private:
-    llvm::LLVMContext context;
-    llvm::Module module;
-    llvm::IRBuilder<> builder;
-    llvm::Type *getLLVMType(token_type type);
     Lexer lexer_handle;
+    llvm::LLVMContext context;
+    llvm::IRBuilder<> builder;
+    llvm::Module module;
+    llvm::Type *getLLVMType(token_type type);
     token cur_tk;
     token prev_tk;
     bool global_flag = false;
@@ -242,15 +242,21 @@ public:
     };
     void execute()
     {
-        llvm::verifyFunction(*mainFunc);
         bool hasErrors = llvm::verifyModule(module, console);
         module.print(*dest, nullptr);
         int k;
         std::cout << "Completed Code Generation" << std::endl;
-        llvm::ExecutionEngine *engine = llvm::EngineBuilder(std::unique_ptr<llvm::Module>(&module)).create();
-        engine->runFunction(mainFunc, {});
+        if (!hasErrors)
+        {
+            llvm::ExecutionEngine *engine = llvm::EngineBuilder(std::unique_ptr<llvm::Module>(&module)).create();
+            engine->runFunction(mainFunc, {});
 
-        std::cout << "Completed Execution" << std::endl;
-        std::cin >> k;
+            std::cout << "Completed Execution" << std::endl;
+            std::cin >> k;
+        }
+        else
+        {
+            std::cout << "LLVM Module contains above errors, code will not execute further" <<std::endl;
+        }
     };
 };

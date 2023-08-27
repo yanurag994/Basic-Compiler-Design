@@ -69,7 +69,7 @@ struct basetoken
     token_type dataType; // Holds datatype for variable and return type for procedure
     llvm::Value *llvm_value = nullptr;
     int size = -1;
-    basetoken() : tokenHash(), type(UNKNOWN) {}
+    basetoken() : type(UNKNOWN), tokenHash()  {}
     basetoken(token_type type, const tokenMk &tokenMark, std::string tokenHash, token_type dataType, int size = -1)
         : type(type), tokenMark(tokenMark), tokenHash(tokenHash), dataType(dataType), size(size) {}
 };

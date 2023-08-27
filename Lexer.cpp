@@ -133,10 +133,8 @@ token Lexer::scan()
   case '"':
     tk.type = STRING_VAL;
     nxtChar = getChar();
-    tk.tokenMark.stringValue[0] = nxtChar;
     unsigned i;
-    nxtChar = getChar();
-    for (i = 1; nxtChar != '"'; i++)
+    for (i = 0; nxtChar != '"'; i++)
     {
       tk.tokenMark.stringValue[i] = nxtChar;
       nxtChar = getChar();
