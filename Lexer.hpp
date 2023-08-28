@@ -66,20 +66,22 @@ struct basetoken
     bool global_var = false;
     token_type type;
     tokenMk tokenMark;
+    std::string tokenHash;
     token_type dataType; // Holds datatype for variable and return type for procedure
     llvm::Value *llvm_value = nullptr;
     int size = -1;
-    basetoken() : type(UNKNOWN) {}
-    basetoken(token_type type, const tokenMk &tokenMark, token_type dataType, int size = -1)
-        : type(type), tokenMark(tokenMark), dataType(dataType), size(size) {}
+    basetoken() : type(UNKNOWN), tokenHash() {}
+    basetoken(token_type type, const tokenMk &tokenMark, std::string tokenHash, token_type dataType, int size = -1)
+        : type(type), tokenMark(tokenMark), tokenHash(tokenHash), dataType(dataType), size(size) {}
 };
 
 struct token : basetoken
 {
-    std::vector<token> argType; // Populate only if a procedure
+    std::vector<token> argType; // Populate only if a 
+    std::vector<token> internal_args; // Populate only if a procedure
     token() : argType() {}
-    token(token_type type, const tokenMk &tokenMark, token_type dataType, int size = -1, const std::vector<token> &argType = {})
-        : basetoken(type, tokenMark, dataType, size), argType(argType) {}
+    token(token_type type, const tokenMk &tokenMark, std::string tokenHash, token_type dataType, int size = -1, const std::vector<token> &argType = {})
+        : basetoken(type, tokenMark, tokenHash, dataType, size), argType(argType) {}
 };
 
 class Lexer

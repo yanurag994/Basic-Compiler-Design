@@ -19,7 +19,6 @@ This document outlines the features, requirements, build instructions, and run i
 2. Open a terminal window.
 3. Run the following commands:
 
-
        cmake . -DCMKAE_BUILD_TYPE=Release
        make
 
