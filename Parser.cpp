@@ -173,7 +173,7 @@ bool Parser::procedure_header(token &proc)
   std::vector<token> internal_llvmargs = symbols->get_internal_args();
   if (scan_assume(IDENTIFIER, proc, true) && scan_assume(TYPE_SEPERATOR) && type_mark(proc.dataType))
   {
-    proc.internal_args=internal_llvmargs;
+    proc.internal_args = internal_llvmargs;
     symbols->enterScope();
     if (scan_assume((token_type)'(') && parameter_list(proc.argType) && scan_assume((token_type)')'))
     {
@@ -189,17 +189,6 @@ bool Parser::procedure_header(token &proc)
       llvm::BasicBlock *entryBlock = llvm::BasicBlock::Create(context, "entry", Func);
       builder.SetInsertPoint(entryBlock);
       auto argIt = Func->arg_begin();
-      for (auto &argInfo : proc.argType) // Provided by Users
-      {
-        llvm::Type *argLLVMType = getLLVMType(argInfo.dataType);
-        llvm::Argument *arg = &*argIt;
-        argIt->setName(argInfo.tokenHash);
-        llvm::AllocaInst *allocaInst = builder.CreateAlloca(argLLVMType);
-        argInfo.llvm_value = allocaInst;
-        symbols->Completetoken(argInfo);
-        builder.CreateStore(arg, allocaInst);
-        ++argIt;
-      }
       for (auto &argInfo : proc.internal_args) // Added internally in backend to support Nested functions
       {
         llvm::Type *argLLVMType = getLLVMType(argInfo.dataType);
@@ -208,6 +197,17 @@ bool Parser::procedure_header(token &proc)
         llvm::AllocaInst *allocaInst = builder.CreateAlloca(argLLVMType);
         argInfo.llvm_value = allocaInst;
         symbols->Addtoken(argInfo);
+        builder.CreateStore(arg, allocaInst);
+        ++argIt;
+      }
+      for (auto &argInfo : proc.argType) // Provided by Users
+      {
+        llvm::Type *argLLVMType = getLLVMType(argInfo.dataType);
+        llvm::Argument *arg = &*argIt;
+        argIt->setName(argInfo.tokenHash);
+        llvm::AllocaInst *allocaInst = builder.CreateAlloca(argLLVMType);
+        argInfo.llvm_value = allocaInst;
+        symbols->Completetoken(argInfo);
         builder.CreateStore(arg, allocaInst);
         ++argIt;
       }
@@ -499,6 +499,11 @@ bool Parser::procedure_call(token &proc, llvm::Value *&returnValue)
 {
   llvm::Function *calleeFunc = module.getFunction(proc.tokenHash);
   std::vector<llvm::Value *> arguments;
+  for (auto i : proc.internal_args)
+  {
+    llvm::Value *arg = builder.CreateLoad(getLLVMType(i.dataType), i.llvm_value);
+    arguments.push_back(arg);
+  }
   if (optional_scan_assume((token_type)')'))
   {
     returnValue = builder.CreateCall(calleeFunc, arguments);
@@ -508,16 +513,16 @@ bool Parser::procedure_call(token &proc, llvm::Value *&returnValue)
   {
     if (scan_assume((token_type)')'))
     {
-      if (calleeFunc->arg_size() != arguments.size() + proc.internal_args.size())
+      if (calleeFunc->arg_size() != arguments.size())
       {
         lexer_handle.reportError("No of arguments passed to function not as per function definition");
-        module.print(*console,nullptr);
+        module.print(*console, nullptr);
         return false;
       }
       else
       {
-        size_t i = 0;
-        for (llvm::Function::arg_iterator argIter = calleeFunc->arg_begin(); argIter != calleeFunc->arg_end() && i<arguments.size(); ++argIter, ++i)
+        size_t i = proc.internal_args.size();
+        for (llvm::Function::arg_iterator argIter = calleeFunc->arg_begin(); argIter != calleeFunc->arg_end() && i < arguments.size(); ++argIter, ++i)
         {
           llvm::Argument *arg = &(*argIter);
           llvm::Type *argType = arg->getType();
@@ -526,11 +531,6 @@ bool Parser::procedure_call(token &proc, llvm::Value *&returnValue)
             lexer_handle.reportError("Type mismatch between argument and function definition");
             return false;
           }
-        }
-        for(auto i : proc.internal_args)
-        {
-          llvm::Value *arg = builder.CreateLoad(getLLVMType(i.dataType),i.llvm_value);
-          arguments.push_back(arg);
         }
         returnValue = builder.CreateCall(calleeFunc, arguments);
         return true;
