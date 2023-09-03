@@ -6,8 +6,6 @@ This document outlines the features, requirements, build instructions, and run i
 
 1. **Array Bounds Check Issue:** The compiler has a known limitation where array bounds checking might not work as expected when the index is an expression.
 
-2. **Nested Function Limitation:** Nested functions are not supported if values from a previous function are attempted to be accessed.
-
 ## Requirements
 
 - C++14
